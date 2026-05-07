@@ -1,0 +1,95 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "autoNext": { "type": "boolean" }
+          }
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Airdrop": {
+      "title": "Airdrop",
+      "description": "An airdrop campaign to track",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "upcoming", "ended"] },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "status", "ownerId"]
+    },
+    "Folder": {
+      "title": "Folder",
+      "description": "A category within an airdrop",
+      "type": "object",
+      "properties": {
+        "airdropId": { "type": "string" },
+        "name": { "type": "string" },
+        "color": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard", "custom"] },
+        "order": { "type": "number" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["airdropId", "name", "ownerId"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A specific task to perform for an airdrop",
+      "type": "object",
+      "properties": {
+        "airdropId": { "type": "string" },
+        "folderId": { "type": "string" },
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "shortcut": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "order": { "type": "number" },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "isCompleted": { "type": "boolean" }
+            }
+          }
+        },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["airdropId", "folderId", "name", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/airdrops/{airdropId}": {
+      "schema": "Airdrop",
+      "description": "Airdrop campaigns"
+    },
+    "/folders/{folderId}": {
+      "schema": "Folder",
+      "description": "Folders for organizing tasks"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Individual tasks"
+    }
+  }
+}

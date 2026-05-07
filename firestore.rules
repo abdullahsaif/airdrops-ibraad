@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // --- Validation Blueprints ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email'])
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 256
+        && (!data.keys().contains('settings') || (data.settings is map && data.settings.keys().hasOnly(['autoNext'])));
+    }
+
+    function isValidAirdrop(data) {
+      return data.keys().hasAll(['name', 'status', 'ownerId', 'createdAt', 'updatedAt'])
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.status in ['active', 'upcoming', 'ended']
+        && data.createdAt == (resource == null ? request.time : existing().createdAt);
+    }
+
+    function isValidFolder(data) {
+      return data.keys().hasAll(['airdropId', 'name', 'ownerId', 'difficulty'])
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 50
+        && data.difficulty in ['easy', 'medium', 'hard', 'custom']
+        && (data.keys().contains('color') ? data.color is string && data.color.size() <= 20 : true);
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['airdropId', 'folderId', 'name', 'ownerId', 'status'])
+        && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.status in ['pending', 'completed']
+        && (!data.keys().contains('steps') || (data.steps is list && data.steps.size() <= 50));
+    }
+
+    // --- Match Rules ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidUser(incoming());
+    }
+
+    match /airdrops/{airdropId} {
+      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidAirdrop(incoming());
+      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidAirdrop(incoming())
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+    }
+
+    match /folders/{folderId} {
+      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidFolder(incoming());
+      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidFolder(incoming())
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+    }
+
+    match /tasks/{taskId} {
+      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidTask(incoming());
+      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidTask(incoming())
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+    }
+  }
+}
