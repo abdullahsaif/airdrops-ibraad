@@ -71,74 +71,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#E4E3E0] flex flex-col items-center justify-center font-mono p-4">
+      <div className="min-h-screen bg-premium-bg flex flex-col items-center justify-center font-sans p-4 overflow-hidden relative">
+        {/* Animated Background Element */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-600/5 rounded-full blur-[120px] pointer-events-none" />
+        
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="max-w-md w-full bg-white border-2 border-[#141414] p-8 space-y-8 shadow-[12px_12px_0px_0px_rgba(20,20,20,1)]"
+          className="max-w-md w-full bg-premium-card border border-premium-border p-10 space-y-10 relative z-10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]"
         >
-          <div className="flex items-center gap-3">
-            <Terminal className="w-8 h-8" />
-            <h1 className="text-2xl font-bold uppercase tracking-tight">TurboDrop</h1>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="bg-premium-accent p-2">
+                 <Terminal className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-3xl font-display font-extrabold uppercase tracking-tight text-white">TurboDrop</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-[1px] flex-1 bg-premium-border" />
+              <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-premium-accent">Systems Online</div>
+              <div className="h-[1px] flex-1 bg-premium-border" />
+            </div>
           </div>
           
           <div className="space-y-4">
-            <div className="bg-[#141414] text-[#E4E3E0] px-3 py-1 text-[10px] w-fit font-bold uppercase tracking-widest">
-              Security Protocol: {isRegistering ? "Registration" : "Authentication"}
+            <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1 rounded-full">
+              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isRegistering ? "bg-amber-400" : "bg-emerald-400")} />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-premium-muted">
+                Mode: {isRegistering ? "New Operator" : "Authorized Link"}
+              </span>
             </div>
-            <p className="text-xs text-gray-500 leading-relaxed italic">
-              Restricted to personal operational use. Unauthorized access attempts are logged.
+            <p className="text-sm text-premium-muted leading-relaxed font-medium">
+              Access is strictly restricted to established operators. Identity verification required for session initiation.
             </p>
           </div>
 
           <form onSubmit={handleAuth} className="space-y-6">
             <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold tracking-widest italic">Email Identity</label>
+              <div className="group space-y-1.5">
+                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 group-focus-within:text-premium-accent transition-colors">Operator Identity</label>
                 <input 
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border-b-2 border-[#141414] py-2 focus:outline-none focus:border-blue-600 bg-transparent"
+                  className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-lg focus:outline-none focus:border-premium-accent focus:ring-1 focus:ring-premium-accent/20 transition-all text-sm placeholder:text-white/10"
                   placeholder="operator@turbodrop.io"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold tracking-widest italic">Encrypted Key</label>
+              <div className="group space-y-1.5">
+                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 group-focus-within:text-premium-accent transition-colors">Access Cipher</label>
                 <input 
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border-b-2 border-[#141414] py-2 focus:outline-none focus:border-blue-600 bg-transparent"
+                  className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-lg focus:outline-none focus:border-premium-accent focus:ring-1 focus:ring-premium-accent/20 transition-all text-sm placeholder:text-white/10"
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 p-3 flex items-center gap-2 text-red-600 text-[10px] font-bold uppercase italic">
-                <ShieldAlert className="w-4 h-4" />
+              <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-red-500/10 border border-red-500/20 p-4 rounded-lg flex items-center gap-3 text-red-400 text-xs font-bold uppercase tracking-tight"
+              >
+                <ShieldAlert className="w-5 h-5 flex-shrink-0" />
                 {error}
-              </div>
+              </motion.div>
             )}
 
             <button 
               type="submit"
-              className="w-full bg-[#141414] text-[#E4E3E0] py-4 px-4 flex items-center justify-center gap-2 hover:bg-black transition-all uppercase text-sm font-black tracking-[0.2em] shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+              className="w-full bg-premium-accent text-white py-5 px-4 flex items-center justify-center gap-3 hover:bg-blue-500 transition-all uppercase text-xs font-black tracking-[0.3em] rounded-lg shadow-lg hover:shadow-blue-500/20 active:scale-[0.98]"
             >
               <LogIn className="w-4 h-4" />
-              {isRegistering ? "CREATE OPERATOR" : "ESTABLISH LINK"}
+              {isRegistering ? "Register ID" : "Start Session"}
             </button>
           </form>
 
-          <div className="pt-4 border-t border-gray-100 flex justify-center">
+          <div className="pt-8 flex justify-center">
             <button 
               onClick={() => setIsRegistering(!isRegistering)}
-              className="text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-[#141414] transition-colors"
+              className="text-[10px] font-bold uppercase tracking-[0.2em] text-premium-muted hover:text-white transition-colors"
             >
-              {isRegistering ? "Already registered? Login" : "First time? Register account"}
+              {isRegistering ? "Return to Login Console" : "Request New Credentials"}
             </button>
           </div>
         </motion.div>

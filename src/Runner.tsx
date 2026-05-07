@@ -163,142 +163,165 @@ export function Runner() {
   }
 
   return (
-    <div className="h-[calc(100vh-2rem)] flex flex-col space-y-4">
+    <div className="h-[calc(100vh-2rem)] flex flex-col space-y-4 font-sans antialiased text-premium-text">
       {/* HUD Header */}
-      <div className="bg-[#141414] text-white p-3 flex items-center justify-between border-b border-gray-700 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <Zap className="w-4 h-4 text-yellow-400 fill-current" />
-          <span className="font-black uppercase tracking-widest text-xs italic">TURBO-DRIVE / SESSION ACTIVE</span>
+      <div className="bg-premium-card border-b border-premium-border p-3 flex items-center justify-between flex-shrink-0 shadow-lg relative z-20">
+        <div className="flex items-center gap-4">
+          <div className="bg-premium-accent/10 p-1.5 rounded">
+            <Zap className="w-4 h-4 text-premium-accent fill-current" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-premium-accent italic leading-none">Turbo-Drive Active</span>
+            <span className="text-[9px] font-mono font-bold text-premium-muted mt-1">SESSION_STX_{id?.slice(0,8)}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-6">
-           <div className="hidden md:flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest opacity-70">
-              <span className="text-gray-500">Auto-Next:</span>
+        <div className="flex items-center gap-8">
+           <div className="hidden md:flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+              <span className="text-premium-muted">Auto-Engagement:</span>
               <button 
                 onClick={() => setAutoNext(!autoNext)}
-                className={cn("px-2 py-0.5 border border-white/20 rounded transition-colors", autoNext ? "bg-green-600 border-green-500" : "bg-red-900 border-red-700")}
+                className={cn(
+                  "px-3 py-1 border transition-all rounded-md text-[9px]", 
+                  autoNext 
+                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]" 
+                    : "bg-red-500/10 border-red-500/50 text-red-400"
+                )}
               >
                 {autoNext ? "ENABLED" : "DISABLED"}
               </button>
            </div>
-           <button onClick={() => navigate(`/airdrop/${id}`)} className="flex items-center gap-2 text-[10px] font-bold uppercase hover:text-red-400 transition-colors">
+           <button 
+             onClick={() => navigate(`/airdrop/${id}`)} 
+             className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-premium-muted hover:text-white transition-colors"
+           >
               <RotateCcw className="w-4 h-4" />
-              <span className="hidden sm:inline">Abort Session</span>
+              <span className="hidden sm:inline">Abort Protocol</span>
            </button>
         </div>
       </div>
 
-      <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
+      <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative z-10">
         {/* Left: Task Queue Sidebar */}
-        <div className="w-12 md:w-56 flex flex-col border border-[#141414] bg-white overflow-hidden">
-           <div className="p-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-              <h3 className="hidden md:block text-[9px] font-black uppercase tracking-widest text-gray-500 italic">Queue</h3>
-              <Keyboard className="w-3 h-3 text-gray-400" />
+        <div className="w-14 md:w-64 flex flex-col premium-glass rounded-2xl overflow-hidden shadow-2xl">
+           <div className="p-4 border-b border-white/5 bg-white/5 flex items-center justify-between">
+              <h3 className="hidden md:block text-[9px] font-black uppercase tracking-[0.3em] text-premium-muted italic">Neural Queue</h3>
+              <Keyboard className="w-3 h-3 text-premium-accent" />
            </div>
-           <div className="flex-1 overflow-y-auto scrollbar-none p-1 space-y-1">
+           <div className="flex-1 overflow-y-auto scrollbar-none p-2 space-y-1.5">
              {tasks.map((t, idx) => (
                <button
                   key={t.id}
                   onClick={() => setCurrentIndex(idx)}
                   className={cn(
-                    "w-full text-left p-2 md:p-3 transition-all flex items-center gap-2 group",
+                    "w-full text-left p-3 md:p-4 transition-all flex items-center gap-3 group rounded-xl relative overflow-hidden",
                     currentIndex === idx 
-                      ? "bg-[#141414] text-white" 
-                      : "hover:bg-gray-100"
+                      ? "bg-premium-accent text-white shadow-lg shadow-premium-accent/20" 
+                      : "hover:bg-white/5 text-premium-muted"
                   )}
                >
-                  <span className="text-[10px] font-mono opacity-40 group-hover:opacity-100">{idx + 1}</span>
-                  <span className="hidden md:block text-[11px] font-bold uppercase tracking-tight truncate flex-1">{t.name}</span>
-                  {currentIndex === idx && <div className="w-1.5 h-1.5 bg-yellow-400 animate-pulse rounded-full" />}
+                  <span className="text-[10px] font-mono opacity-40 group-hover:opacity-100 font-bold">{idx + 1}</span>
+                  <span className="hidden md:block text-[11px] font-black uppercase tracking-tight truncate flex-1">{t.name}</span>
+                  {currentIndex === idx && (
+                    <div className="w-1 h-4 bg-white/40 absolute left-0 rounded-full" />
+                  )}
                </button>
              ))}
            </div>
         </div>
 
         {/* Center: Terminal Iframe Area */}
-        <div className="flex-1 border-2 border-[#141414] bg-white flex flex-col overflow-hidden shadow-[8px_8px_0px_0px_rgba(20,20,20,1)]">
-           <div className="bg-gray-100 p-2 border-b border-[#141414] flex items-center justify-between">
-              <div className="flex items-center gap-2 truncate">
-                 <div className="w-2 h-2 rounded-full bg-red-400" />
-                 <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                 <div className="w-2 h-2 rounded-full bg-green-400" />
-                 <span className="ml-2 text-[10px] font-mono text-gray-500 truncate">{currentTask.url}</span>
+        <div className="flex-1 premium-glass border border-premium-border rounded-2xl flex flex-col overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.4)]">
+           <div className="bg-white/5 p-3 px-4 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3 truncate">
+                 <div className="flex gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-red-500/50" />
+                    <div className="w-2 h-2 rounded-full bg-amber-500/50" />
+                    <div className="w-2 h-2 rounded-full bg-emerald-500/50" />
+                 </div>
+                 <div className="h-4 w-[1px] bg-white/10 mx-2" />
+                 <span className="text-[10px] font-mono text-premium-muted truncate italic">{currentTask.url}</span>
               </div>
               <button 
                 onClick={() => window.open(currentTask.url, '_blank')}
-                className="bg-[#141414] text-white px-3 py-1 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:bg-black transition-colors"
+                className="bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all"
               >
-                <ExternalLink className="w-3 h-3" />
-                Pop Out
+                <ExternalLink className="w-3.5 h-3.5" />
+                Pop Out [ENT]
               </button>
            </div>
-           <div className="flex-1 bg-[#F0F0F0] relative overflow-hidden">
+           <div className="flex-1 bg-[#050505] relative overflow-hidden group">
               <iframe 
                 src={currentTask.url} 
-                className="w-full h-full border-none"
+                className="w-full h-full border-none opacity-90 group-hover:opacity-100 transition-opacity"
                 title="Target Preview"
                 referrerPolicy="no-referrer"
                 sandbox="allow-forms allow-modals allow-popups allow-scripts allow-same-origin"
               />
               {/* Fallback Overlay for blocked iframes */}
-              <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
-                 <div className="bg-black/80 text-white p-3 text-[9px] font-bold uppercase tracking-[0.2em] inline-block">
-                    Note: If screen stays blank, the target site restricts framing. Use "Pop Out" or Press [ENT].
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                 <div className="bg-black/90 border border-white/10 text-white p-4 text-[10px] font-black uppercase tracking-[0.3em] text-center shadow-2xl backdrop-blur-md rounded-2xl max-w-xs">
+                    Target site may restrict framing. Initialize pop-out manually if required.
                  </div>
               </div>
            </div>
         </div>
 
         {/* Right: Execution Steps Sidebar */}
-        <div className="w-64 md:w-80 border border-[#141414] bg-white flex flex-col overflow-hidden">
-           <div className="p-4 border-b border-[#141414] bg-[#141414] text-white">
-              <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                 <Terminal className="w-4 h-4" /> 
-                 Protocol Steps
-              </h4>
+        <div className="w-72 md:w-96 premium-glass border border-premium-border flex flex-col overflow-hidden rounded-2xl">
+           <div className="p-6 bg-premium-accent/5 border-b border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                 <h4 className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2 text-white">
+                    Execution Cluster
+                 </h4>
+                 <Terminal className="w-4 h-4 text-premium-accent" />
+              </div>
+              <p className="text-[10px] font-mono text-premium-muted uppercase tracking-tighter">Current Op: {currentTask.name}</p>
            </div>
            
-           <div className="flex-1 p-4 overflow-y-auto space-y-3">
+           <div className="flex-1 p-6 overflow-y-auto space-y-4 scrollbar-none">
               {currentTask.steps?.map((step: any, sIdx: number) => (
                 <button 
                   key={sIdx}
                   onClick={() => toggleStep(sIdx)}
                   className={cn(
-                   "w-full flex items-center gap-3 p-3 border transition-all relative group text-left",
+                   "w-full flex items-center gap-4 p-4 border transition-all relative group text-left rounded-xl",
                    step.isCompleted 
-                     ? "border-green-600 bg-green-50/50" 
-                     : "border-gray-200 hover:border-[#141414] hover:bg-gray-50"
+                     ? "border-emerald-500/20 bg-emerald-500/5" 
+                     : "border-white/5 bg-white/[0.02] hover:border-premium-accent hover:bg-premium-accent/5"
                   )}
                 >
                    <div className={cn(
-                     "w-6 h-6 flex items-center justify-center font-black text-[10px] flex-shrink-0",
-                     step.isCompleted ? "bg-green-600 text-white" : "bg-gray-200 text-gray-500 group-hover:bg-[#141414] group-hover:text-white"
+                     "w-7 h-7 rounded-lg flex items-center justify-center font-black text-[11px] flex-shrink-0 transition-all",
+                     step.isCompleted 
+                       ? "bg-emerald-500 text-white" 
+                       : "bg-white/5 text-premium-muted group-hover:bg-premium-accent group-hover:text-white"
                    )}>
                      {sIdx + 1}
                    </div>
-                   <span className={cn("text-[11px] font-bold uppercase tracking-tight flex-1", step.isCompleted && "line-through opacity-40")}>
+                   <span className={cn("text-[11px] font-bold uppercase tracking-tight flex-1", step.isCompleted ? "line-through text-emerald-400 opacity-60" : "text-white")}>
                      {step.description}
                    </span>
-                   {step.isCompleted && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                   {step.isCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
                    {!step.isCompleted && (
-                     <div className="text-[8px] font-mono border border-gray-400 px-1 py-0.5 opacity-0 group-hover:opacity-100">
-                        {sIdx+1}
+                     <div className="text-[9px] font-mono border border-white/20 px-1.5 py-0.5 opacity-0 group-hover:opacity-100 bg-white/5 text-premium-muted rounded">
+                        [{sIdx+1}]
                      </div>
                    )}
                 </button>
               ))}
            </div>
 
-           <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-4">
+           <div className="p-6 border-t border-white/5 bg-white/5 space-y-4">
               <button 
                  onClick={() => handleTaskComplete(currentTask.id)}
-                 className="w-full bg-blue-600 text-white py-3 font-black uppercase tracking-widest text-[11px] hover:bg-blue-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] active:translate-x-0.5 active:translate-y-0.5"
+                 className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] text-[10px] hover:bg-blue-500 shadow-2xl shadow-premium-accent/20 active:scale-[0.98] transition-all"
               >
-                Manual Complete [SPC]
+                Confirm Completion [SPC]
               </button>
               
-              <div className="grid grid-cols-2 gap-2 text-[9px] font-bold uppercase tracking-tight text-gray-400">
-                 <div className="flex items-center gap-1.5"><kbd className="px-1 border">←</kbd> Prev</div>
-                 <div className="flex items-center gap-1.5"><kbd className="px-1 border">→</kbd> Next</div>
+              <div className="grid grid-cols-2 gap-4 text-[9px] font-black uppercase tracking-[0.2em] text-premium-muted">
+                 <div className="flex items-center gap-2 hover:text-white transition-colors cursor-help"><kbd className="px-2 py-0.5 rounded border border-white/10 bg-white/5">←</kbd> PREV</div>
+                 <div className="flex items-center gap-2 justify-end hover:text-white transition-colors cursor-help">NEXT <kbd className="px-2 py-0.5 rounded border border-white/10 bg-white/5">→</kbd></div>
               </div>
            </div>
         </div>

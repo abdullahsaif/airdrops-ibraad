@@ -45,84 +45,97 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-12">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#141414] pb-6">
-        <div>
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-1 italic">Mission Control</h2>
-          <h1 className="text-4xl font-black uppercase tracking-tighter">Operational Overview</h1>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-premium-border pb-10">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-premium-accent text-[10px] font-black uppercase tracking-[0.3em] italic">
+            <div className="w-1.5 h-1.5 bg-premium-accent rounded-full animate-pulse" />
+            Operational Hub
+          </div>
+          <h1 className="text-5xl font-display font-extrabold uppercase tracking-tighter text-white">Command Center</h1>
         </div>
         <button 
           onClick={() => setShowNewModal(true)}
-          className="bg-[#141414] text-white px-6 py-3 flex items-center justify-center gap-2 hover:bg-black transition-all font-bold uppercase text-sm tracking-widest shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] active:shadow-none active:translate-x-1 active:translate-y-1"
+          className="bg-premium-accent text-white px-8 py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-500 transition-all font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-premium-accent/20 active:scale-95"
         >
           <Plus className="w-4 h-4" />
-          Deploy New Airdrop
+          New Deployment
         </button>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: 'Active Tasks', value: stats.active, icon: Activity, color: 'text-green-600' },
-          { label: 'Upcoming', value: stats.upcoming, icon: Clock, color: 'text-blue-600' },
-          { label: 'Completed', value: stats.ended, icon: CheckCircle2, color: 'text-gray-500' },
+          { label: 'Active Missions', value: stats.active, icon: Activity, color: 'text-emerald-400', bg: 'bg-emerald-400/5' },
+          { label: 'On Standby', value: stats.upcoming, icon: Clock, color: 'text-amber-400', bg: 'bg-amber-400/5' },
+          { label: 'Archived', value: stats.ended, icon: CheckCircle2, color: 'text-premium-muted', bg: 'bg-white/5' },
         ].map((stat, i) => (
           <motion.div 
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white border border-[#141414] p-6 group hover:bg-[#141414] transition-colors"
+            className="premium-gradient-card border border-premium-border p-8 rounded-2xl group hover:border-premium-accent transition-all duration-500"
           >
-            <div className="flex items-center justify-between">
-              <stat.icon className={cn("w-6 h-6", stat.color, "group-hover:text-white")} />
-              <span className="text-3xl font-black group-hover:text-white tracking-tighter">{stat.value}</span>
+            <div className="flex items-center justify-between mb-8">
+              <div className={cn("p-4 rounded-xl", stat.bg)}>
+                <stat.icon className={cn("w-6 h-6", stat.color)} />
+              </div>
+              <span className="text-4xl font-display font-extrabold text-white tracking-tighter">{stat.value}</span>
             </div>
-            <p className="mt-4 text-[10px] uppercase font-bold tracking-widest text-[#141414] group-hover:text-white/70 italic">{stat.label}</p>
+            <p className="text-[10px] uppercase font-black tracking-[0.2em] text-premium-muted group-hover:text-white transition-colors">{stat.label}</p>
           </motion.div>
         ))}
       </div>
 
-      {/* Airdrops Table */}
-      <div className="bg-white border border-[#141414] overflow-hidden">
-        <div className="grid grid-cols-6 p-4 border-b border-[#141414] bg-gray-50 font-serif italic text-xs uppercase tracking-widest text-gray-500">
-          <div className="col-span-2">Airdrop Name</div>
+      {/* Airdrops Data Layer */}
+      <div className="bg-premium-card border border-premium-border rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-6 p-6 border-b border-premium-border bg-white/[0.02] text-[10px] font-black uppercase tracking-[0.2em] text-premium-muted italic">
+          <div className="col-span-2">Airdrop Identifier</div>
           <div>Status</div>
-          <div>Progress</div>
-          <div>Deployed</div>
-          <div className="text-right">Action</div>
+          <div>Efficiency</div>
+          <div>Time logged</div>
+          <div className="text-right">Access</div>
         </div>
 
         {airdrops.length === 0 ? (
-          <div className="p-12 text-center text-gray-400 italic">
-            No active operations detected. Click "Deploy" to begin.
+          <div className="p-24 text-center">
+            <p className="text-premium-muted italic text-sm py-4">No active deployments detected within your sector.</p>
+            <button onClick={() => setShowNewModal(true)} className="text-premium-accent text-xs font-black uppercase tracking-widest hover:underline">Initialize First Mission</button>
           </div>
         ) : (
           airdrops.map((airdrop, i) => (
             <Link 
               to={`/airdrop/${airdrop.id}`}
               key={airdrop.id}
-              className="grid grid-cols-6 p-4 border-b border-[#141414] hover:bg-[#141414] hover:text-white transition-all group items-center"
+              className="grid grid-cols-6 p-6 border-b border-premium-border hover:bg-white/[0.03] transition-all group items-center"
             >
-              <div className="col-span-2 flex items-center gap-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="font-bold uppercase tracking-tight">{airdrop.name}</span>
+              <div className="col-span-2 flex items-center gap-4">
+                <div className={cn("w-2 h-2 rounded-full", airdrop.status === 'active' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-premium-muted')} />
+                <span className="font-bold text-white uppercase tracking-tight group-hover:text-premium-accent transition-colors">{airdrop.name}</span>
               </div>
-              <div className="text-[10px] font-bold uppercase tracking-widest opacity-70">
-                {airdrop.status}
+              <div className="text-[10px] font-black uppercase tracking-[0.2em]">
+                <span className={cn(
+                  "px-2 py-1 rounded border",
+                  airdrop.status === 'active' ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/10" : "border-premium-border text-premium-muted"
+                )}>
+                  {airdrop.status}
+                </span>
               </div>
-              <div className="flex items-center gap-2 pr-4">
-                <div className="flex-1 h-1 bg-gray-200 group-hover:bg-gray-700">
-                  <div className="h-full bg-[#141414] group-hover:bg-white transition-all" style={{ width: '45%' }} />
+              <div className="pr-10">
+                <div className="flex items-center justify-between gap-3 mb-1.5">
+                   <span className="text-[9px] font-mono font-bold text-premium-muted">SYNC: 45%</span>
                 </div>
-                <span className="text-[10px] font-mono">45%</span>
+                <div className="h-1.5 bg-premium-bg rounded-full overflow-hidden border border-white/5">
+                  <div className="h-full bg-premium-accent rounded-full transition-all group-hover:shadow-[0_0_10px_rgba(59,130,246,0.5)]" style={{ width: '45%' }} />
+                </div>
               </div>
-              <div className="text-[10px] font-mono opacity-50">
+              <div className="text-[10px] font-mono text-premium-muted">
                 {formatDate(airdrop.createdAt)}
               </div>
               <div className="text-right">
-                <ChevronRight className="w-4 h-4 ml-auto" />
+                <ChevronRight className="w-5 h-5 ml-auto text-premium-muted group-hover:text-white transition-all transform group-hover:translate-x-1" />
               </div>
             </Link>
           ))
@@ -163,39 +176,39 @@ function NewAirdropModal({ onClose, onSuccess }: { onClose: () => void, onSucces
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#050505]/90 backdrop-blur-md">
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-white border-2 border-[#141414] p-8 max-w-md w-full relative"
+        className="bg-premium-card border border-premium-border p-10 max-w-md w-full relative rounded-2xl shadow-2xl"
       >
-        <button onClick={onClose} className="absolute top-4 right-4 text-2xl font-bold hover:scale-110 transition-transform">×</button>
-        <h3 className="text-2xl font-black uppercase tracking-tighter mb-6">New Operation</h3>
+        <button onClick={onClose} className="absolute top-6 right-6 text-2xl font-bold text-premium-muted hover:text-white transition-colors">×</button>
+        <h3 className="text-3xl font-display font-extrabold uppercase tracking-tighter mb-8 text-white">Initialize Mission</h3>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase font-bold tracking-widest italic">Airdrop Name</label>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Airdrop Descriptor</label>
             <input 
               required
               autoFocus
-              className="w-full border-b-2 border-[#141414] py-2 focus:outline-none focus:border-blue-600 transition-colors bg-transparent placeholder:text-gray-300"
+              className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent focus:ring-1 focus:ring-premium-accent/20 transition-all text-sm text-white placeholder:text-white/10"
               placeholder="e.g. MONAD INCENTIVIZED TESTNET"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase font-bold tracking-widest italic">Initial Status</label>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-4">
+            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Inaugural Status</label>
+            <div className="grid grid-cols-3 gap-3">
               {['active', 'upcoming', 'ended'].map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setStatus(s)}
                   className={cn(
-                    "py-2 text-[10px] font-bold uppercase tracking-widest border transition-all",
-                    status === s ? "bg-[#141414] text-white border-[#141414]" : "border-gray-200 hover:border-[#141414]"
+                    "py-3 text-[10px] font-black uppercase tracking-widest border rounded-lg transition-all",
+                    status === s ? "bg-premium-accent text-white border-premium-accent shadow-lg shadow-premium-accent/20" : "border-premium-border text-premium-muted hover:border-premium-muted"
                   )}
                 >
                   {s}
@@ -206,7 +219,7 @@ function NewAirdropModal({ onClose, onSuccess }: { onClose: () => void, onSucces
 
           <button 
             type="submit"
-            className="w-full bg-[#141414] text-white py-4 font-black uppercase tracking-[0.2em] hover:bg-black shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all"
+            className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] hover:bg-blue-500 shadow-xl hover:shadow-blue-500/20 transition-all active:scale-95"
           >
             Deploy Mission
           </button>

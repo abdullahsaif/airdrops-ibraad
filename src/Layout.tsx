@@ -14,41 +14,46 @@ export function Navigation() {
   ];
 
   return (
-    <nav className="fixed top-0 left-0 h-screen w-16 md:w-64 bg-white border-r border-[#141414] z-50 flex flex-col">
-      <div className="p-4 border-bottom border-[#141414] flex items-center gap-3">
-        <Terminal className="w-10 h-10 md:w-8 md:h-8 flex-shrink-0" />
-        <span className="hidden md:block font-bold text-xl uppercase tracking-tighter">TurboDrop</span>
+    <nav className="fixed top-0 left-0 h-screen w-20 md:w-64 bg-premium-card border-r border-premium-border z-50 flex flex-col">
+      <div className="p-6 flex items-center gap-3 border-b border-premium-border">
+        <div className="bg-premium-accent p-1.5 rounded">
+          <Terminal className="w-6 h-6 text-white" />
+        </div>
+        <span className="hidden md:block font-display font-extrabold text-xl uppercase tracking-tighter text-white">TurboDrop</span>
       </div>
 
-      <div className="flex-1 px-2 py-4 space-y-2">
-        {navItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className={cn(
-              "flex items-center gap-3 p-3 text-sm font-bold uppercase tracking-wider transition-all",
-              location.pathname === item.path 
-                ? "bg-[#141414] text-white" 
-                : "hover:bg-gray-100"
-            )}
-          >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            <span className="hidden md:block">{item.name}</span>
-          </Link>
-        ))}
+      <div className="flex-1 px-3 py-8 space-y-2">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={cn(
+                "flex items-center gap-4 p-3.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all group",
+                isActive 
+                  ? "bg-premium-accent text-white shadow-lg shadow-premium-accent/20" 
+                  : "text-premium-muted hover:text-white hover:bg-white/5"
+              )}
+            >
+              <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-colors", isActive ? "text-white" : "text-premium-muted group-hover:text-premium-accent")} />
+              <span className="hidden md:block">{item.name}</span>
+            </Link>
+          );
+        })}
       </div>
 
-      <div className="p-4 border-t border-[#141414] mt-auto space-y-4">
-        <div className="hidden md:block">
-          <p className="text-[10px] text-gray-400 font-mono uppercase">Operator</p>
-          <p className="text-xs font-bold truncate">{user?.displayName || user?.email}</p>
+      <div className="p-6 border-t border-premium-border mt-auto space-y-6">
+        <div className="hidden md:block space-y-1 px-1">
+          <p className="text-[10px] text-premium-muted font-bold uppercase tracking-widest">Active Identity</p>
+          <p className="text-[11px] font-bold text-white truncate">{user?.email}</p>
         </div>
         <button 
           onClick={logout}
-          className="w-full flex items-center gap-3 p-3 text-sm font-bold uppercase tracking-wider hover:text-red-600 transition-colors"
+          className="w-full flex items-center gap-4 p-3 text-[11px] font-black uppercase tracking-widest text-premium-muted hover:text-red-400 transition-colors group"
         >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          <span className="hidden md:block">Sign Out</span>
+          <LogOut className="w-5 h-5 flex-shrink-0 group-hover:rotate-12 transition-transform" />
+          <span className="hidden md:block">Terminate</span>
         </button>
       </div>
     </nav>
@@ -57,10 +62,11 @@ export function Navigation() {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#E4E3E0] text-[#141414] font-mono">
+    <div className="min-h-screen bg-premium-bg text-premium-text font-sans selection:bg-premium-accent selection:text-white">
       <Navigation />
-      <main className="pl-16 md:pl-64 pt-4 min-h-screen">
-        <div className="max-w-6xl mx-auto p-4 md:p-8">
+      <main className="pl-20 md:pl-64 min-h-screen relative">
+        <div className="absolute top-0 right-0 w-1/3 h-64 bg-premium-accent/5 blur-[100px] pointer-events-none" />
+        <div className="max-w-6xl mx-auto p-6 md:p-12 relative z-10">
           {children}
         </div>
       </main>
