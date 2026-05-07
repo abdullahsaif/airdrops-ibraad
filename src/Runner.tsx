@@ -163,140 +163,142 @@ export function Runner() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="h-[calc(100vh-2rem)] flex flex-col space-y-4">
       {/* HUD Header */}
-      <div className="bg-[#141414] text-white p-4 flex items-center justify-between border-b border-gray-700">
+      <div className="bg-[#141414] text-white p-3 flex items-center justify-between border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <Zap className="w-5 h-5 text-yellow-400 fill-current" />
-          <span className="font-black uppercase tracking-widest text-sm italic">SPEEDRUN MODE / ACTIVE</span>
+          <Zap className="w-4 h-4 text-yellow-400 fill-current" />
+          <span className="font-black uppercase tracking-widest text-xs italic">TURBO-DRIVE / SESSION ACTIVE</span>
         </div>
-        <div className="flex items-center gap-4">
-           <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-70">
-              <Settings className="w-3 h-3" />
-              Auto-Next:
+        <div className="flex items-center gap-6">
+           <div className="hidden md:flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest opacity-70">
+              <span className="text-gray-500">Auto-Next:</span>
               <button 
                 onClick={() => setAutoNext(!autoNext)}
-                className={cn("px-2 py-0.5 border border-white/20 rounded", autoNext ? "bg-green-600 border-green-500" : "bg-red-900 border-red-700")}
+                className={cn("px-2 py-0.5 border border-white/20 rounded transition-colors", autoNext ? "bg-green-600 border-green-500" : "bg-red-900 border-red-700")}
               >
-                {autoNext ? "ON" : "OFF"}
+                {autoNext ? "ENABLED" : "DISABLED"}
               </button>
            </div>
-           <button onClick={() => navigate(`/airdrop/${id}`)} className="p-1 hover:text-red-400">
-              <RotateCcw className="w-5 h-5" />
+           <button onClick={() => navigate(`/airdrop/${id}`)} className="flex items-center gap-2 text-[10px] font-bold uppercase hover:text-red-400 transition-colors">
+              <RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline">Abort Session</span>
            </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Task Queue Sidebar */}
-        <div className="space-y-2 max-h-[600px] overflow-y-auto scrollbar-thin pr-2">
-           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4 italic">Execution Queue ({tasks.length})</h3>
-           {tasks.map((t, idx) => (
-             <button
-                key={t.id}
-                onClick={() => setCurrentIndex(idx)}
-                className={cn(
-                  "w-full text-left p-3 border transition-all text-sm font-bold uppercase tracking-tight",
-                  currentIndex === idx 
-                    ? "bg-[#141414] text-white border-[#141414] translate-x-2" 
-                    : "bg-white border-gray-200 hover:border-[#141414]"
-                )}
-             >
-                <div className="flex justify-between items-start gap-2">
-                   <span className="line-clamp-1">{t.name}</span>
-                   {currentIndex === idx && <Play className="w-3 h-3 fill-current flex-shrink-0" />}
-                </div>
-                <div className="text-[8px] opacity-50 mt-1 font-mono">OP-{idx+1}</div>
-             </button>
-           ))}
+      <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
+        {/* Left: Task Queue Sidebar */}
+        <div className="w-12 md:w-56 flex flex-col border border-[#141414] bg-white overflow-hidden">
+           <div className="p-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+              <h3 className="hidden md:block text-[9px] font-black uppercase tracking-widest text-gray-500 italic">Queue</h3>
+              <Keyboard className="w-3 h-3 text-gray-400" />
+           </div>
+           <div className="flex-1 overflow-y-auto scrollbar-none p-1 space-y-1">
+             {tasks.map((t, idx) => (
+               <button
+                  key={t.id}
+                  onClick={() => setCurrentIndex(idx)}
+                  className={cn(
+                    "w-full text-left p-2 md:p-3 transition-all flex items-center gap-2 group",
+                    currentIndex === idx 
+                      ? "bg-[#141414] text-white" 
+                      : "hover:bg-gray-100"
+                  )}
+               >
+                  <span className="text-[10px] font-mono opacity-40 group-hover:opacity-100">{idx + 1}</span>
+                  <span className="hidden md:block text-[11px] font-bold uppercase tracking-tight truncate flex-1">{t.name}</span>
+                  {currentIndex === idx && <div className="w-1.5 h-1.5 bg-yellow-400 animate-pulse rounded-full" />}
+               </button>
+             ))}
+           </div>
         </div>
 
-        {/* Execution Pane */}
-        <div className="md:col-span-2 space-y-6">
-           <AnimatePresence mode="wait">
-             <motion.div 
-               key={currentTask.id}
-               initial={{ x: 20, opacity: 0 }}
-               animate={{ x: 0, opacity: 1 }}
-               exit={{ x: -20, opacity: 0 }}
-               className="bg-white border border-[#141414] p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col min-h-[400px]"
-             >
-                <div className="mb-6 flex justify-between items-start">
-                   <div>
-                      <h4 className="text-3xl font-black uppercase tracking-tighter leading-none mb-2">{currentTask.name}</h4>
-                      <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest truncate max-w-sm">{currentTask.url}</p>
+        {/* Center: Terminal Iframe Area */}
+        <div className="flex-1 border-2 border-[#141414] bg-white flex flex-col overflow-hidden shadow-[8px_8px_0px_0px_rgba(20,20,20,1)]">
+           <div className="bg-gray-100 p-2 border-b border-[#141414] flex items-center justify-between">
+              <div className="flex items-center gap-2 truncate">
+                 <div className="w-2 h-2 rounded-full bg-red-400" />
+                 <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                 <div className="w-2 h-2 rounded-full bg-green-400" />
+                 <span className="ml-2 text-[10px] font-mono text-gray-500 truncate">{currentTask.url}</span>
+              </div>
+              <button 
+                onClick={() => window.open(currentTask.url, '_blank')}
+                className="bg-[#141414] text-white px-3 py-1 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest hover:bg-black transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Pop Out
+              </button>
+           </div>
+           <div className="flex-1 bg-[#F0F0F0] relative overflow-hidden">
+              <iframe 
+                src={currentTask.url} 
+                className="w-full h-full border-none"
+                title="Target Preview"
+                referrerPolicy="no-referrer"
+                sandbox="allow-forms allow-modals allow-popups allow-scripts allow-same-origin"
+              />
+              {/* Fallback Overlay for blocked iframes */}
+              <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
+                 <div className="bg-black/80 text-white p-3 text-[9px] font-bold uppercase tracking-[0.2em] inline-block">
+                    Note: If screen stays blank, the target site restricts framing. Use "Pop Out" or Press [ENT].
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        {/* Right: Execution Steps Sidebar */}
+        <div className="w-64 md:w-80 border border-[#141414] bg-white flex flex-col overflow-hidden">
+           <div className="p-4 border-b border-[#141414] bg-[#141414] text-white">
+              <h4 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                 <Terminal className="w-4 h-4" /> 
+                 Protocol Steps
+              </h4>
+           </div>
+           
+           <div className="flex-1 p-4 overflow-y-auto space-y-3">
+              {currentTask.steps?.map((step: any, sIdx: number) => (
+                <button 
+                  key={sIdx}
+                  onClick={() => toggleStep(sIdx)}
+                  className={cn(
+                   "w-full flex items-center gap-3 p-3 border transition-all relative group text-left",
+                   step.isCompleted 
+                     ? "border-green-600 bg-green-50/50" 
+                     : "border-gray-200 hover:border-[#141414] hover:bg-gray-50"
+                  )}
+                >
+                   <div className={cn(
+                     "w-6 h-6 flex items-center justify-center font-black text-[10px] flex-shrink-0",
+                     step.isCompleted ? "bg-green-600 text-white" : "bg-gray-200 text-gray-500 group-hover:bg-[#141414] group-hover:text-white"
+                   )}>
+                     {sIdx + 1}
                    </div>
-                   <div className="bg-gray-100 p-2 border border-gray-200">
-                      <Terminal className="w-5 h-5" />
-                   </div>
-                </div>
+                   <span className={cn("text-[11px] font-bold uppercase tracking-tight flex-1", step.isCompleted && "line-through opacity-40")}>
+                     {step.description}
+                   </span>
+                   {step.isCompleted && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                   {!step.isCompleted && (
+                     <div className="text-[8px] font-mono border border-gray-400 px-1 py-0.5 opacity-0 group-hover:opacity-100">
+                        {sIdx+1}
+                     </div>
+                   )}
+                </button>
+              ))}
+           </div>
 
-                <div className="space-y-4 flex-1">
-                   {currentTask.steps?.map((step: any, sIdx: number) => (
-                     <button 
-                       key={sIdx}
-                       onClick={() => toggleStep(sIdx)}
-                       className={cn(
-                        "w-full flex items-center gap-4 p-4 border-2 transition-all transition-transform active:scale-95 group",
-                        step.isCompleted 
-                          ? "border-green-600 bg-green-50/50" 
-                          : "border-gray-100 hover:border-[#141414]"
-                       )}
-                     >
-                        <div className={cn(
-                          "w-8 h-8 flex items-center justify-center font-black text-sm",
-                          step.isCompleted ? "bg-green-600 text-white" : "bg-[#141414] text-white"
-                        )}>
-                          {sIdx + 1}
-                        </div>
-                        <span className={cn("flex-1 text-left font-bold uppercase tracking-tight", step.isCompleted && "line-through opacity-50")}>
-                          {step.description}
-                        </span>
-                        {!step.isCompleted && (
-                          <div className="text-[9px] font-mono border border-gray-400 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                             Press [{sIdx+1}]
-                          </div>
-                        )}
-                        {step.isCompleted && <CheckCircle2 className="w-5 h-5 text-green-600" />}
-                     </button>
-                   ))}
-                </div>
-
-                <div className="mt-8 grid grid-cols-2 gap-4">
-                   <button 
-                      onClick={() => window.open(currentTask.url, '_blank')}
-                      className="bg-[#141414] text-white py-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest hover:bg-black"
-                   >
-                     <ExternalLink className="w-5 h-5" />
-                     Open Terminal [ENT]
-                   </button>
-                   <button 
-                      onClick={() => handleTaskComplete(currentTask.id)}
-                      className="border-2 border-[#141414] py-4 font-black uppercase tracking-widest hover:bg-gray-100"
-                   >
-                     Force Complete [SPC]
-                   </button>
-                </div>
-             </motion.div>
-           </AnimatePresence>
-
-           {/* Controls Help */}
-           <div className="bg-gray-50 border border-gray-200 p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="flex items-center gap-2">
-                 <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-[10px] font-bold">1-9</kbd>
-                 <span className="text-[10px] uppercase font-bold text-gray-500">Steps</span>
-              </div>
-              <div className="flex items-center gap-2">
-                 <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-[10px] font-bold">ENT</kbd>
-                 <span className="text-[10px] uppercase font-bold text-gray-500">Open URL</span>
-              </div>
-              <div className="flex items-center gap-2">
-                 <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-[10px] font-bold">← →</kbd>
-                 <span className="text-[10px] uppercase font-bold text-gray-500">Navigate</span>
-              </div>
-              <div className="flex items-center gap-2">
-                 <kbd className="px-2 py-1 bg-white border border-gray-300 rounded text-[10px] font-bold">SPC</kbd>
-                 <span className="text-[10px] uppercase font-bold text-gray-500">Finish</span>
+           <div className="p-4 border-t border-gray-100 bg-gray-50 space-y-4">
+              <button 
+                 onClick={() => handleTaskComplete(currentTask.id)}
+                 className="w-full bg-blue-600 text-white py-3 font-black uppercase tracking-widest text-[11px] hover:bg-blue-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] active:translate-x-0.5 active:translate-y-0.5"
+              >
+                Manual Complete [SPC]
+              </button>
+              
+              <div className="grid grid-cols-2 gap-2 text-[9px] font-bold uppercase tracking-tight text-gray-400">
+                 <div className="flex items-center gap-1.5"><kbd className="px-1 border">←</kbd> Prev</div>
+                 <div className="flex items-center gap-1.5"><kbd className="px-1 border">→</kbd> Next</div>
               </div>
            </div>
         </div>
