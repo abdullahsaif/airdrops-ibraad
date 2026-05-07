@@ -1,5 +1,12 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+  User 
+} from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
@@ -20,7 +27,6 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); 
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
 
 // Error Handling Utility as per SKILL.md
 export enum OperationType {
@@ -87,5 +93,9 @@ export {
   getDocFromServer,
   serverTimestamp,
   Timestamp,
-  signInWithPopup
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
 };
+export type { User };
