@@ -247,19 +247,17 @@ export function Navigation() {
                   <button 
                     onClick={async (e) => {
                       e.preventDefault();
-                      if (confirm("Deactivate this sector? Connections to projects will be severed (projects will return to unclassified).")) {
-                        try {
-                          const batch = writeBatch(db);
-                          const q = query(collection(db, 'airdrops'), where('folderId', '==', folder.id));
-                          const snap = await getDocs(q);
-                          snap.docs.forEach(doc => {
-                            batch.update(doc.ref, { folderId: null });
-                          });
-                          batch.delete(doc(db, 'projectFolders', folder.id));
-                          await batch.commit();
-                        } catch (err) {
-                          console.error(err);
-                        }
+                      try {
+                        const batch = writeBatch(db);
+                        const q = query(collection(db, 'airdrops'), where('folderId', '==', folder.id));
+                        const snap = await getDocs(q);
+                        snap.docs.forEach(doc => {
+                          batch.update(doc.ref, { folderId: null });
+                        });
+                        batch.delete(doc(db, 'projectFolders', folder.id));
+                        await batch.commit();
+                      } catch (err) {
+                        console.error(err);
                       }
                     }}
                     className="hidden md:flex opacity-0 group-hover/folder:opacity-100 p-2 text-premium-muted hover:text-red-400 transition-all"

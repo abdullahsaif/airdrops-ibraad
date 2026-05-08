@@ -272,7 +272,6 @@ const TaskCard: React.FC<{ task: AirdropTask, index: number }> = ({ task, index 
   };
 
   const deleteSelf = async () => {
-    if (!confirm("Confirm data erasure?")) return;
     try {
       await deleteDoc(doc(db, 'tasks', task.id));
     } catch (e) {

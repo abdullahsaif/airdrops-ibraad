@@ -29,39 +29,160 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingAirdrop, setEditingAirdrop] = useState<any>(null);
-  const [lastActiveId, setLastActiveId] = useState<string | null>(() => localStorage.getItem('last_active_airdrop'));
+  const [lastActiveId, setLastActiveId] = useState<string | null>(null);
   const [isChainMode, setIsChainMode] = useState(false);
   const sessionWinRef = useRef<Window | null>(null);
+  const [isOpening, setIsOpening] = useState(false);
+
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const handleSetActive = (id: string, autoOpen = false, win: Window | null = null) => {
+    // Avoid double-setting if already active and we just want to update the ref
+    if (win && sessionWinRef.current === win) return;
+    
     setLastActiveId(id);
-    localStorage.setItem('last_active_airdrop', id);
+    
+    // Auto-scroll the selected card into view
+    setTimeout(() => {
+      const element = document.getElementById(`airdrop-card-${id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
     
     if (win) {
       sessionWinRef.current = win;
     }
     
     if (autoOpen) {
+      // Prevent multiple concurrent launch attempts
+      if (isOpening) return;
+      
       const airdrop = airdrops.find(a => a.id === id);
       if (airdrop) {
         if (airdrop.url) {
+          // Check if we already have an open window for THIS target to prevent double opening
+          if (sessionWinRef.current && !sessionWinRef.current.closed && lastActiveId === id) {
+             console.log("Mission already active in specialized uplink");
+             return;
+          }
+
+          setIsOpening(true);
           const newWin = window.open(airdrop.url, '_blank');
+          
           if (newWin) {
             sessionWinRef.current = newWin;
-            setNextReady(false); // Reset ready state if success
+            setNextReady(false);
+            // Small delay to let browser register the window
+            setTimeout(() => setIsOpening(false), 800);
           } else {
-            // If blocked, we stay in chain mode but wait for manual launch
             console.log("Auto-open blocked or failed");
-            setNextReady(true); // Ensure button shows if blocked
+            setNextReady(true);
+            setIsOpening(false);
           }
         } else {
           navigate(`/airdrop/${airdrop.id}`);
+          setIsOpening(false);
         }
       }
     }
   };
 
   const [nextReady, setNextReady] = useState(false);
+
+  const toggleChainMode = () => {
+    if (isChainMode) {
+      setIsChainMode(false);
+      setNextReady(false);
+      sessionWinRef.current = null;
+      return;
+    }
+
+    const targetId = lastActiveId || (airdrops.length > 0 ? airdrops[0].id : null);
+    if (targetId) {
+      sessionWinRef.current = null;
+      setNextReady(false);
+      setIsChainMode(true);
+      setTimeout(() => {
+        handleSetActive(targetId, true);
+      }, 100);
+    }
+  };
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (
+        document.activeElement?.tagName === 'INPUT' || 
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        toggleChainMode();
+      }
+
+      if (e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        setShowNewModal(true);
+      }
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setShowHelpModal(prev => !prev);
+      }
+
+      if (e.key === 'Escape') {
+        setShowNewModal(false);
+        setEditingAirdrop(null);
+        setShowHelpModal(false);
+      }
+
+      const currentIndex = airdrops.findIndex(a => a.id === lastActiveId);
+      
+      if (e.key.toLowerCase() === 'e' && lastActiveId) {
+        e.preventDefault();
+        const active = airdrops.find(a => a.id === lastActiveId);
+        if (active) setEditingAirdrop(active);
+      }
+
+      if (e.key === 'Home') {
+        e.preventDefault();
+        if (airdrops.length > 0) handleSetActive(airdrops[0].id);
+      }
+
+      if (e.key === 'End') {
+        e.preventDefault();
+        if (airdrops.length > 0) handleSetActive(airdrops[airdrops.length - 1].id);
+      }
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (currentIndex < airdrops.length - 1) {
+          handleSetActive(airdrops[currentIndex + 1].id);
+        }
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (currentIndex > 0) {
+          handleSetActive(airdrops[currentIndex - 1].id);
+        }
+      }
+
+      if (e.key === 'Enter' && lastActiveId && !isChainMode) {
+        e.preventDefault();
+        handleSetActive(lastActiveId, true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isChainMode, lastActiveId, airdrops, isOpening]);
 
   // Monitor window for Chain Mode
   useEffect(() => {
@@ -76,6 +197,9 @@ export function Dashboard() {
     }
     
     const interval = setInterval(() => {
+      // Only proceed if we aren't currently in the middle of opening a window
+      if (isOpening) return;
+
       if (sessionWinRef.current && sessionWinRef.current.closed) {
         sessionWinRef.current = null;
         
@@ -85,7 +209,6 @@ export function Dashboard() {
           const nextAirdrop = airdrops[currentIndex + 1];
           // Try to Auto-Open directly
           handleSetActive(nextAirdrop.id, true);
-          setNextReady(true); // Show UI state as backup
         } else {
           setIsChainMode(false);
           setNextReady(false);
@@ -94,7 +217,7 @@ export function Dashboard() {
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [isChainMode, lastActiveId, airdrops]);
+  }, [isChainMode, lastActiveId, airdrops, isOpening]);
 
   useEffect(() => {
     if (!user) return;
@@ -120,10 +243,18 @@ export function Dashboard() {
         });
 
         // Filter based on route (if in folder view or unclassified)
+        let filteredData = [];
         if (folderId) {
-          setAirdrops(data.filter(a => a.folderId === folderId));
+          filteredData = data.filter(a => a.folderId === folderId);
         } else {
-          setAirdrops(data.filter(a => !a.folderId));
+          filteredData = data.filter(a => !a.folderId);
+        }
+
+        setAirdrops(filteredData);
+        
+        // Auto-set the first card as active on fresh load/refresh
+        if (filteredData.length > 0 && !lastActiveId) {
+          setLastActiveId(filteredData[0].id);
         }
         
         setLoading(false);
@@ -147,7 +278,6 @@ const stats = {
 
   const handleDeleteAirdrop = async (airdropId: string) => {
     if (!user) return;
-    if (!confirm("Confirm data erasure? All associated sectors and tasks will be permanently removed.")) return;
 
     try {
       const batch = writeBatch(db);
@@ -222,7 +352,7 @@ const stats = {
         
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsChainMode(!isChainMode)}
+            onClick={toggleChainMode}
             className={cn(
               "px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 border shadow-lg",
               isChainMode 
@@ -403,6 +533,7 @@ const stats = {
             {airdrops.map((airdrop, i) => (
               <React.Fragment key={airdrop.id}>
                 <div 
+                  id={`airdrop-card-${airdrop.id}`}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData('sourceIndex', i.toString());
@@ -487,6 +618,46 @@ const stats = {
           onSuccess={() => setEditingAirdrop(null)}
           folders={folders}
         />
+      )}
+
+      {/* Shortcuts Help Modal */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowHelpModal(false)}>
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-premium-card border border-premium-border p-8 max-w-md w-full rounded-2xl shadow-2xl space-y-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black uppercase tracking-tighter text-white">System Hotkeys</h3>
+              <button onClick={() => setShowHelpModal(false)} className="text-premium-muted hover:text-white">×</button>
+            </div>
+
+            <div className="space-y-4">
+              {[
+                { keys: ['S'], label: 'Toggle Sequence Mode' },
+                { keys: ['N'], label: 'New Mission' },
+                { keys: ['E'], label: 'Edit Selected' },
+                { keys: ['Enter'], label: 'Launch Selected' },
+                { keys: ['Arrows'], label: 'Navigate Cards' },
+                { keys: ['Home', 'End'], label: 'Jump to edges' },
+                { keys: ['?'], label: 'Toggle this help' },
+                { keys: ['Esc'], label: 'Close everything' },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between border-b border-white/5 pb-2 text-sm">
+                  <span className="text-premium-muted uppercase text-[10px] font-bold">{item.label}</span>
+                  <div className="flex gap-1">
+                    {item.keys.map(k => (
+                      <kbd key={k} className="px-2 py-0.5 bg-white/10 rounded border border-white/10 text-[10px] font-black text-premium-accent">{k}</kbd>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[9px] text-center text-premium-muted uppercase tracking-widest font-black">Speed is the only strategy.</p>
+          </motion.div>
+        </div>
       )}
     </div>
   );
