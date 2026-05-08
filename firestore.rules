@@ -32,7 +32,8 @@ service cloud.firestore {
         && (!data.keys().contains('url') || (data.url is string && data.url.size() <= 512))
         && (!data.keys().contains('frequency') || data.frequency in ['daily', '3-day', 'weekly', 'one-time'])
         && (!data.keys().contains('difficulty') || data.difficulty in ['easy', 'medium', 'hard'])
-        && (!data.keys().contains('folderId') || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128));
+        && (!data.keys().contains('folderId') || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128))
+        && (!data.keys().contains('order') || data.order is number);
     }
 
     function isValidProjectFolder(data) {

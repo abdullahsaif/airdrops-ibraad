@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   collection, 
   query, 
@@ -17,7 +17,7 @@ import {
 } from './lib/firebase';
 import { useAuth } from './AuthWrapper';
 import { motion } from 'motion/react';
-import { Plus, ChevronRight, Activity, Clock, CheckCircle2, Trash2, Calendar, Shield, ExternalLink, ArrowUpRight, Settings, Pencil, Settings2, AppWindow } from 'lucide-react';
+import { Plus, ChevronRight, Activity, Clock, CheckCircle2, Trash2, Calendar, Shield, ExternalLink, ArrowUpRight, Settings, Pencil, Settings2, AppWindow, GripVertical, MoveRight } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { formatDate, cn, getRelativeDays, getFaviconUrl } from './lib/utils';
 
@@ -29,6 +29,72 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingAirdrop, setEditingAirdrop] = useState<any>(null);
+  const [lastActiveId, setLastActiveId] = useState<string | null>(() => localStorage.getItem('last_active_airdrop'));
+  const [isChainMode, setIsChainMode] = useState(false);
+  const sessionWinRef = useRef<Window | null>(null);
+
+  const handleSetActive = (id: string, autoOpen = false, win: Window | null = null) => {
+    setLastActiveId(id);
+    localStorage.setItem('last_active_airdrop', id);
+    
+    if (win) {
+      sessionWinRef.current = win;
+    }
+    
+    if (autoOpen) {
+      const airdrop = airdrops.find(a => a.id === id);
+      if (airdrop) {
+        if (airdrop.url) {
+          const newWin = window.open(airdrop.url, '_blank');
+          if (newWin) {
+            sessionWinRef.current = newWin;
+            setNextReady(false); // Reset ready state if success
+          } else {
+            // If blocked, we stay in chain mode but wait for manual launch
+            console.log("Auto-open blocked or failed");
+            setNextReady(true); // Ensure button shows if blocked
+          }
+        } else {
+          navigate(`/airdrop/${airdrop.id}`);
+        }
+      }
+    }
+  };
+
+  const [nextReady, setNextReady] = useState(false);
+
+  // Monitor window for Chain Mode
+  useEffect(() => {
+    if (!isChainMode) {
+      setNextReady(false);
+      return;
+    }
+
+    // If no active ID, set to first
+    if (!lastActiveId && airdrops.length > 0) {
+      setLastActiveId(airdrops[0].id);
+    }
+    
+    const interval = setInterval(() => {
+      if (sessionWinRef.current && sessionWinRef.current.closed) {
+        sessionWinRef.current = null;
+        
+        // Find next index
+        const currentIndex = airdrops.findIndex(a => a.id === lastActiveId);
+        if (currentIndex !== -1 && currentIndex < airdrops.length - 1) {
+          const nextAirdrop = airdrops[currentIndex + 1];
+          // Try to Auto-Open directly
+          handleSetActive(nextAirdrop.id, true);
+          setNextReady(true); // Show UI state as backup
+        } else {
+          setIsChainMode(false);
+          setNextReady(false);
+        }
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [isChainMode, lastActiveId, airdrops]);
 
   useEffect(() => {
     if (!user) return;
@@ -43,8 +109,16 @@ export function Dashboard() {
     const q = query(collection(db, 'airdrops'), where('ownerId', '==', user.uid));
     const unsubscribeAirdrops = onSnapshot(q, 
       (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+        let data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
         
+        // Sort by order, then by createdAt
+        data.sort((a, b) => {
+          const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+          const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+        });
+
         // Filter based on route (if in folder view or unclassified)
         if (folderId) {
           setAirdrops(data.filter(a => a.folderId === folderId));
@@ -103,6 +177,35 @@ const stats = {
     }
   };
 
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleReorder = async (sourceIndex: number, targetIndex: number) => {
+    if (!user || sourceIndex === targetIndex) return;
+
+    const newAirdrops = [...airdrops];
+    const [movedItem] = newAirdrops.splice(sourceIndex, 1);
+    newAirdrops.splice(targetIndex, 0, movedItem);
+
+    // Optimistic local update
+    setAirdrops(newAirdrops);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+
+    try {
+      const batch = writeBatch(db);
+      newAirdrops.forEach((airdrop, i) => {
+        batch.update(doc(db, 'airdrops', airdrop.id), { 
+          order: i,
+          updatedAt: serverTimestamp() 
+        });
+      });
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'airdrops/reorder');
+    }
+  };
+
   return (
     <div className="space-y-12">
       {/* Header */}
@@ -116,14 +219,111 @@ const stats = {
             {currentFolder ? currentFolder.name : 'Command Center'}
           </h1>
         </div>
-        <button 
-          onClick={() => setShowNewModal(true)}
-          className="bg-premium-accent text-white px-8 py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-500 transition-all font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-premium-accent/20 active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          Deploy Mission
-        </button>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsChainMode(!isChainMode)}
+            className={cn(
+              "px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 border shadow-lg",
+              isChainMode 
+                ? "bg-premium-accent text-white border-premium-accent shadow-premium-accent/20" 
+                : "bg-white/5 text-premium-muted border-premium-border hover:border-premium-accent/40"
+            )}
+          >
+            <Activity className={cn("w-3.5 h-3.5", isChainMode && "animate-spin-slow")} />
+            {isChainMode ? 'Sequence Mode: Active' : 'Start Sequence'}
+          </button>
+          
+          <button 
+            onClick={() => setShowNewModal(true)}
+            className="bg-premium-accent text-white px-8 py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-500 transition-all font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-premium-accent/20 active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            Deploy Mission
+          </button>
+        </div>
       </div>
+
+      {isChainMode && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={cn(
+            "border rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between backdrop-blur-md gap-4 relative overflow-hidden transition-all duration-500",
+            nextReady 
+              ? "bg-premium-accent/20 border-premium-accent shadow-[0_0_50px_rgba(37,99,235,0.3)]" 
+              : "bg-premium-accent/10 border-premium-accent/30"
+          )}
+        >
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-premium-accent/50 to-transparent" />
+          
+          <div className="flex items-center gap-6">
+            <div className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center shadow-inner transition-all duration-500",
+              nextReady ? "bg-premium-accent text-white" : "bg-premium-accent/20 text-premium-accent"
+            )}>
+              <Activity className={cn("w-6 h-6", (isChainMode || nextReady) && "animate-pulse")} />
+            </div>
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-premium-accent mb-1 flex items-center gap-2">
+                {nextReady ? 'Mission Complete - Next Optimized' : 'Mission Chain Active'}
+                <span className="flex gap-1">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="w-1 h-1 bg-premium-accent rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
+                  ))}
+                </span>
+              </div>
+              <div className="text-xs text-white/70 font-medium">
+                {nextReady 
+                  ? "Previous target neutralized. Next sector is primed and ready for deployment."
+                  : "System is tracking your session. Close your current tab to unlock the next sector."}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 bg-black/40 px-6 py-3 rounded-xl border border-white/5 min-w-[280px]">
+            <div className="flex-1">
+              <div className="text-[9px] font-mono text-premium-muted uppercase mb-0.5">Target Sector</div>
+              <div className="text-[11px] font-bold text-white uppercase tracking-wider truncate max-w-[150px]">
+                {nextReady 
+                  ? airdrops[airdrops.findIndex(a => a.id === lastActiveId) + 1]?.name 
+                  : airdrops.find(a => a.id === lastActiveId)?.name || 'Initializing...'}
+              </div>
+            </div>
+            
+            {nextReady ? (
+              <button
+                onClick={() => {
+                  const nextIndex = airdrops.findIndex(a => a.id === lastActiveId) + 1;
+                  if (nextIndex < airdrops.length) {
+                    setNextReady(false);
+                    handleSetActive(airdrops[nextIndex].id, true);
+                  }
+                }}
+                className="bg-premium-accent text-white px-6 py-2 rounded-lg font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] animate-bounce"
+              >
+                Launch Next
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-px h-8 bg-white/10" />
+                <button 
+                  onClick={() => {
+                    const nextIndex = airdrops.findIndex(a => a.id === lastActiveId) + 1;
+                    if (nextIndex < airdrops.length) {
+                      handleSetActive(airdrops[nextIndex].id, true);
+                    }
+                  }}
+                  className="p-2 hover:bg-premium-accent/20 rounded-lg transition-colors text-premium-accent"
+                  title="Skip to Next"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -199,15 +399,71 @@ const stats = {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="flex flex-wrap items-stretch justify-center md:justify-start gap-y-12 gap-x-2 md:gap-x-4">
             {airdrops.map((airdrop, i) => (
-              <AirdropCard 
-                key={airdrop.id} 
-                airdrop={airdrop} 
-                index={i} 
-                onEdit={() => setEditingAirdrop(airdrop)}
-                onDelete={() => handleDeleteAirdrop(airdrop.id)}
-              />
+              <React.Fragment key={airdrop.id}>
+                <div 
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('sourceIndex', i.toString());
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDraggedIndex(i);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverIndex !== i) setDragOverIndex(i);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOverIndex(i);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedIndex !== null && draggedIndex !== i) {
+                      handleReorder(draggedIndex, i);
+                    }
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  className={cn(
+                    "transition-all duration-300 ease-in-out relative select-none w-full sm:w-[calc(50%-1.5rem)] lg:w-[calc(33.333%-2rem)] 2xl:w-[calc(16.66%-2rem)] min-w-[200px]",
+                    draggedIndex === i ? "opacity-20 scale-95" : "opacity-100 scale-100 cursor-grab active:cursor-grabbing",
+                    dragOverIndex === i && draggedIndex !== i ? "after:content-[''] after:absolute after:top-0 after:left-0 after:right-0 after:h-1 after:bg-premium-accent after:rounded-full after:animate-pulse z-40 transform translate-y-3" : ""
+                  )}
+                >
+                  <AirdropCard 
+                    airdrop={airdrop} 
+                    index={i} 
+                    isActive={lastActiveId === airdrop.id}
+                    onOpen={(win) => handleSetActive(airdrop.id, false, win)}
+                    onEdit={() => setEditingAirdrop(airdrop)}
+                    onDelete={() => handleDeleteAirdrop(airdrop.id)}
+                  />
+                </div>
+                {i < airdrops.length - 1 && (
+                  <div className="hidden sm:flex items-center justify-center -mx-2 md:-mx-4 z-10 self-center">
+                    <motion.div
+                      animate={{ 
+                        x: [0, 4, 0],
+                        opacity: [0.3, 0.6, 0.3]
+                      }}
+                      transition={{ 
+                        duration: 3,
+                        repeat: Infinity,
+                        ease: "linear"
+                      }}
+                      className="text-premium-accent drop-shadow-[0_0_12px_rgba(37,99,235,0.3)]"
+                    >
+                      <MoveRight className="w-4 h-4 md:w-5 md:h-5" />
+                    </motion.div>
+                  </div>
+                )}
+              </React.Fragment>
             ))}
           </div>
         )}
@@ -236,11 +492,11 @@ const stats = {
   );
 }
 
-function AirdropCard({ airdrop, index, onEdit, onDelete }: { airdrop: any, index: number, onEdit: () => void, onDelete: () => Promise<void> }) {
+function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { airdrop: any, index: number, isActive?: boolean, onOpen?: (win: Window | null) => void, onEdit: () => void, onDelete: () => Promise<void> }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [tasks, setTasks] = useState<any[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (!user || !isExpanded) return;
@@ -255,43 +511,50 @@ function AirdropCard({ airdrop, index, onEdit, onDelete }: { airdrop: any, index
     return () => unsubscribe();
   }, [user, airdrop.id, isExpanded]);
 
-  const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('airdropId', airdrop.id);
-    e.dataTransfer.effectAllowed = 'move';
-    setIsDragging(true);
-  };
-
-  const handleDragEnd = () => {
-    setIsDragging(false);
-  };
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ y: -4 }}
       transition={{ delay: index * 0.05 }}
-      className={cn(
-        "group relative h-full",
-        isDragging ? "cursor-grabbing" : "cursor-grab"
-      )}
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      className="group relative h-full pointer-events-none"
     >
       <div 
-        onClick={() => {
-          if (airdrop.url) window.open(airdrop.url, '_blank');
-          else navigate(`/airdrop/${airdrop.id}`);
+        onClick={(e) => {
+          e.stopPropagation();
+          if (airdrop.url) {
+            const win = window.open(airdrop.url, '_blank');
+            onOpen?.(win);
+          } else {
+            onOpen?.(null);
+            navigate(`/airdrop/${airdrop.id}`);
+          }
         }}
-        className="premium-gradient-card border border-premium-border rounded-2xl group hover:border-premium-accent transition-all duration-300 shadow-lg overflow-hidden h-full flex flex-col cursor-pointer"
+        className={cn(
+          "premium-gradient-card border rounded-2xl group transition-all duration-500 shadow-lg overflow-hidden h-full flex flex-col cursor-pointer pointer-events-auto relative",
+          isActive 
+            ? "border-premium-accent bg-premium-accent/[0.12] shadow-[0_0_60px_rgba(37,99,235,0.25),inset_0_1px_1px_rgba(255,255,255,0.1),inset_0_0_40px_rgba(37,99,235,0.1)] ring-1 ring-premium-accent" 
+            : "border-premium-border hover:border-premium-accent/40"
+        )}
       >
+        {isActive && (
+          <div className="absolute top-0 right-0 p-2 z-[2]">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-bl-xl bg-premium-accent border-l border-b border-white/20 shadow-lg shadow-premium-accent/40">
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
+              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white">Active Sector</span>
+            </div>
+          </div>
+        )}
         <div className="p-6 space-y-5 flex-1">
           {/* Top Bar */}
           <div className="flex items-start justify-between">
-            <div className={cn(
-              "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-[0.2em] border",
-              airdrop.status === 'active' ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-premium-border text-premium-muted bg-white/5"
-            )}>
+            <div 
+              className={cn(
+                "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-[0.2em] border flex items-center gap-1.5",
+                airdrop.status === 'active' ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-premium-border text-premium-muted bg-white/5"
+              )}
+            >
+              <GripVertical className="w-2.5 h-2.5 opacity-40 shrink-0" />
               {airdrop.status}
             </div>
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -380,7 +643,10 @@ function AirdropCard({ airdrop, index, onEdit, onDelete }: { airdrop: any, index
            <Link 
              to={`/airdrop/${airdrop.id}`}
              title="Console Management"
-             onClick={(e) => e.stopPropagation()}
+             onClick={(e) => {
+               e.stopPropagation();
+               onOpen?.(null);
+             }}
              className="w-10 h-10 bg-white/5 border border-white/5 text-premium-muted hover:text-premium-accent hover:border-premium-accent/30 rounded-lg flex items-center justify-center transition-all relative z-10"
            >
              <Settings2 className="w-4 h-4" />
@@ -451,6 +717,7 @@ function AirdropModal({
           ...data,
           ownerId: user.uid,
           createdAt: serverTimestamp(),
+          order: folders.length, // Simple default order
         });
       }
       onSuccess();
