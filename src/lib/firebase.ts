@@ -20,7 +20,9 @@ import {
   deleteDoc,
   addDoc,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  writeBatch,
+  getDocs
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -93,6 +95,8 @@ export {
   getDocFromServer,
   serverTimestamp,
   Timestamp,
+  writeBatch,
+  getDocs,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged,

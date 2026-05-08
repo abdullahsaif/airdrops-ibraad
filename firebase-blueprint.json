@@ -23,13 +23,28 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
+        "url": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["daily", "3-day", "weekly", "one-time"] },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
         "description": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "upcoming", "ended"] },
+        "folderId": { "type": "string" },
         "ownerId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "status", "ownerId"]
+    },
+    "ProjectFolder": {
+      "title": "Project Folder",
+      "description": "A folder for organizing airdrop projects",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId"]
     },
     "Folder": {
       "title": "Folder",
@@ -82,6 +97,10 @@
     "/airdrops/{airdropId}": {
       "schema": "Airdrop",
       "description": "Airdrop campaigns"
+    },
+    "/projectFolders/{folderId}": {
+      "schema": "ProjectFolder",
+      "description": "Folders for organizing airdrop projects"
     },
     "/folders/{folderId}": {
       "schema": "Folder",

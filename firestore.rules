@@ -28,7 +28,16 @@ service cloud.firestore {
         && data.ownerId == request.auth.uid
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.status in ['active', 'upcoming', 'ended']
-        && data.createdAt == (resource == null ? request.time : existing().createdAt);
+        && data.createdAt == (resource == null ? request.time : existing().createdAt)
+        && (!data.keys().contains('url') || (data.url is string && data.url.size() <= 512))
+        && (!data.keys().contains('frequency') || data.frequency in ['daily', '3-day', 'weekly', 'one-time'])
+        && (!data.keys().contains('difficulty') || data.difficulty in ['easy', 'medium', 'hard'])
+        && (!data.keys().contains('folderId') || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128));
+    }
+
+    function isValidProjectFolder(data) {
+      return data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 64;
     }
 
     function isValidFolder(data) {
@@ -40,10 +49,11 @@ service cloud.firestore {
     }
 
     function isValidTask(data) {
-      return data.keys().hasAll(['airdropId', 'folderId', 'name', 'ownerId', 'status'])
+      return data.keys().hasAll(['airdropId', 'name', 'ownerId', 'status'])
         && data.ownerId == request.auth.uid
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.status in ['pending', 'completed']
+        && (!data.keys().contains('folderId') || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128))
         && (!data.keys().contains('steps') || (data.steps is list && data.steps.size() <= 50));
     }
 
@@ -58,6 +68,14 @@ service cloud.firestore {
       allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
       allow create: if isSignedIn() && isValidAirdrop(incoming());
       allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidAirdrop(incoming())
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+    }
+
+    match /projectFolders/{folderId} {
+      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidProjectFolder(incoming());
+      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidProjectFolder(incoming())
         && incoming().ownerId == existing().ownerId;
       allow delete: if isSignedIn() && isOwner(existing().ownerId);
     }

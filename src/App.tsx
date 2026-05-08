@@ -12,6 +12,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<Layout><Dashboard /></Layout>} />
+          <Route path="/folder/:folderId" element={<Layout><Dashboard /></Layout>} />
           <Route path="/airdrop/:id" element={<Layout><AirdropDetails /></Layout>} />
           <Route path="/runner/:id" element={<Layout><Runner /></Layout>} />
           <Route path="/settings" element={<Layout><div className="p-8 text-center uppercase font-black italic text-gray-400 underline decoration-red-500">Settings Access Restricted in Alpha</div></Layout>} />

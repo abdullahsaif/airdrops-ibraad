@@ -29,7 +29,8 @@ import {
   Keyboard,
   ArrowRight,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Terminal
 } from 'lucide-react';
 import { cn } from './lib/utils';
 
@@ -70,21 +71,30 @@ export function AirdropDetails() {
     if (!user || !id) return;
 
     const airdropRef = doc(db, 'airdrops', id);
-    const unsubAirdrop = onSnapshot(airdropRef, (doc) => {
-      if (doc.exists()) setAirdrop({ id: doc.id, ...doc.data() });
-      else navigate('/');
-    });
+    const unsubAirdrop = onSnapshot(airdropRef, 
+      (doc) => {
+        if (doc.exists()) setAirdrop({ id: doc.id, ...doc.data() });
+        else navigate('/');
+      },
+      (error) => handleFirestoreError(error, OperationType.GET, `airdrops/${id}`)
+    );
 
     const fq = query(collection(db, 'folders'), where('airdropId', '==', id), where('ownerId', '==', user.uid));
-    const unsubFolders = onSnapshot(fq, (snapshot) => {
-      setFolders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
+    const unsubFolders = onSnapshot(fq, 
+      (snapshot) => {
+        setFolders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      },
+      (error) => handleFirestoreError(error, OperationType.LIST, 'folders')
+    );
 
     const tq = query(collection(db, 'tasks'), where('airdropId', '==', id), where('ownerId', '==', user.uid));
-    const unsubTasks = onSnapshot(tq, (snapshot) => {
-      setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoading(false);
-    });
+    const unsubTasks = onSnapshot(tq, 
+      (snapshot) => {
+        setTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      },
+      (error) => handleFirestoreError(error, OperationType.LIST, 'tasks')
+    );
 
     return () => {
       unsubAirdrop();
@@ -122,7 +132,7 @@ export function AirdropDetails() {
             className="premium-glass bg-white/5 border-white/10 px-6 py-4 flex items-center justify-center gap-3 hover:bg-white/10 transition-all font-black uppercase text-[10px] tracking-widest text-white rounded-xl"
           >
             <Plus className="w-4 h-4" />
-            Add Sector
+            Add Group
           </button>
           <button 
              onClick={() => navigate(`/runner/${id}`)}
@@ -175,7 +185,7 @@ export function AirdropDetails() {
   );
 }
 
-function FolderSection({ folder, onAddTask }: { folder: AirdropFolder, onAddTask: () => void }) {
+const FolderSection: React.FC<{ folder: AirdropFolder, onAddTask: () => void }> = ({ folder, onAddTask }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const difficultyStyles: any = {
@@ -246,7 +256,7 @@ function FolderSection({ folder, onAddTask }: { folder: AirdropFolder, onAddTask
   );
 }
 
-function TaskCard({ task, index }: { task: AirdropTask, index: number }) {
+const TaskCard: React.FC<{ task: AirdropTask, index: number }> = ({ task, index }) => {
   const [complete, setComplete] = useState(task.status === 'completed');
 
   const toggleStatus = async () => {
@@ -356,14 +366,14 @@ function NewFolderModal({ airdropId, onClose }: { airdropId: string, onClose: ()
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#050505]/95 backdrop-blur-xl">
       <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-premium-card border border-premium-border p-10 max-w-md w-full relative rounded-2xl shadow-2xl">
         <button onClick={onClose} className="absolute top-6 right-6 text-2xl font-bold text-premium-muted hover:text-white transition-colors">×</button>
-        <h3 className="text-3xl font-display font-extrabold uppercase tracking-tighter mb-8 text-white">Establish Sector</h3>
+        <h3 className="text-3xl font-display font-extrabold uppercase tracking-tighter mb-8 text-white">Establish Group</h3>
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="space-y-2">
-            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Sector Designation</label>
+            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Group Designation</label>
             <input required autoFocus className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent text-white" placeholder="e.g. SOCIALS, DAILY, ON-CHAIN" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="space-y-4">
-            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Difficulty Rating</label>
+            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Challenge Level</label>
             <div className="grid grid-cols-2 gap-3">
               {['easy', 'medium', 'hard', 'custom'].map((s) => (
                 <button 
@@ -380,7 +390,7 @@ function NewFolderModal({ airdropId, onClose }: { airdropId: string, onClose: ()
               ))}
             </div>
           </div>
-          <button type="submit" className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] hover:bg-blue-500 shadow-xl transition-all">Establish Sector</button>
+          <button type="submit" className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] hover:bg-blue-500 shadow-xl transition-all">Establish Group</button>
         </form>
       </motion.div>
     </div>

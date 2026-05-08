@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { cn } from './lib/utils';
 import { 
   auth, 
   signInWithEmailAndPassword, 
@@ -57,13 +58,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#E4E3E0] flex items-center justify-center font-mono">
+      <div className="min-h-screen bg-premium-bg flex items-center justify-center font-mono">
         <motion.div 
           animate={{ opacity: [0.4, 1, 0.4] }}
           transition={{ repeat: Infinity, duration: 1.5 }}
-          className="text-black text-sm uppercase tracking-widest"
+          className="text-premium-accent text-xs font-black uppercase tracking-[0.4em] italic"
         >
-          Initializing Satellite Link...
+          Initializing Secure Satellite Link...
         </motion.div>
       </div>
     );
