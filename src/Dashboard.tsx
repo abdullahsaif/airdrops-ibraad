@@ -23,6 +23,7 @@ import { formatDate, cn, getRelativeDays, getFaviconUrl } from './lib/utils';
 
 export function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { folderId } = useParams();
   const [airdrops, setAirdrops] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
@@ -136,6 +137,12 @@ export function Dashboard() {
         setShowHelpModal(prev => !prev);
       }
 
+      if (e.key === '/') {
+        e.preventDefault();
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.focus();
+      }
+
       if (e.key === 'Escape') {
         setShowNewModal(false);
         setEditingAirdrop(null);
@@ -225,7 +232,14 @@ export function Dashboard() {
     // Fetch folders for categories and modal
     const foldersQ = query(collection(db, 'projectFolders'), where('ownerId', '==', user.uid));
     const unsubscribeFolders = onSnapshot(foldersQ, (snapshot) => {
-      setFolders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      data.sort((a, b) => {
+        const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+        const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0);
+      });
+      setFolders(data);
     });
 
     // Main airdrops query
@@ -537,6 +551,7 @@ const stats = {
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData('sourceIndex', i.toString());
+                    e.dataTransfer.setData('airdropId', airdrop.id);
                     e.dataTransfer.effectAllowed = 'move';
                     setDraggedIndex(i);
                   }}
@@ -639,6 +654,7 @@ const stats = {
                 { keys: ['S'], label: 'Toggle Sequence Mode' },
                 { keys: ['N'], label: 'New Mission' },
                 { keys: ['E'], label: 'Edit Selected' },
+                { keys: ['/'], label: 'Quick Search' },
                 { keys: ['Enter'], label: 'Launch Selected' },
                 { keys: ['Arrows'], label: 'Navigate Cards' },
                 { keys: ['Home', 'End'], label: 'Jump to edges' },

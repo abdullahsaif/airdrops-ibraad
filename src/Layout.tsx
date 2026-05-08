@@ -9,6 +9,8 @@ import {
   where, 
   onSnapshot, 
   db, 
+  handleFirestoreError,
+  OperationType,
   addDoc, 
   serverTimestamp,
   deleteDoc,
@@ -28,6 +30,12 @@ export function Navigation() {
   const [dragOverFolder, setDragOverFolder] = React.useState<string | null>(null);
   const [isSyncing, setIsSyncing] = React.useState(false);
 
+  const [draggedFolderIndex, setDraggedFolderIndex] = React.useState<number | null>(null);
+  const [dragOverFolderIndex, setDragOverFolderIndex] = React.useState<number | null>(null);
+
+  const [folderToDelete, setFolderToDelete] = React.useState<any | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = React.useState('');
+
   React.useEffect(() => {
     if (!user) return;
     setIsSyncing(true);
@@ -38,7 +46,15 @@ export function Navigation() {
     
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-        setFolders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        // Sort by order, then by createdAt
+        data.sort((a, b) => {
+          const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+          const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0);
+        });
+        setFolders(data);
         setIsSyncing(false);
       },
       (error) => {
@@ -75,7 +91,8 @@ export function Navigation() {
       const docRef = await addDoc(collection(db, 'projectFolders'), {
         name: newFolderName.trim(),
         ownerId: user.uid,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        order: folders.length
       });
       setNewFolderName('');
       setShowFolderInput(false);
@@ -84,6 +101,31 @@ export function Navigation() {
       console.error("Failed to create sector:", e);
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleReorderFolders = async (sourceIdx: number, targetIdx: number) => {
+    if (!user || sourceIdx === targetIdx) return;
+
+    const newFolders = [...folders];
+    const [moved] = newFolders.splice(sourceIdx, 1);
+    newFolders.splice(targetIdx, 0, moved);
+
+    setFolders(newFolders);
+    setDraggedFolderIndex(null);
+    setDragOverFolderIndex(null);
+
+    try {
+      const batch = writeBatch(db);
+      newFolders.forEach((f, i) => {
+        batch.update(doc(db, 'projectFolders', f.id), {
+          order: i,
+          updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Failed to reorder sectors:", err);
     }
   };
 
@@ -202,22 +244,55 @@ export function Navigation() {
                 Neural Sectors Offline
               </div>
             )}
-            {folders.map(folder => {
+            {folders.map((folder, i) => {
               const isActive = location.pathname === `/folder/${folder.id}`;
               const isOver = dragOverFolder === folder.id;
               const projectCount = airdrops.filter(a => a.folderId === folder.id).length;
+              
+              const isFolderDragged = draggedFolderIndex === i;
+              const isFolderDragOver = dragOverFolderIndex === i;
+
               return (
                 <div 
                   key={folder.id}
+                  draggable
+                  onDragStart={(e) => {
+                    // Prevent conflict with airdrop dragging if we have both? 
+                    // Sidebar usually only drags folders.
+                    e.dataTransfer.setData('sourceIndexFolder', i.toString());
+                    setDraggedFolderIndex(i);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedFolderIndex(null);
+                    setDragOverFolderIndex(null);
+                  }}
                   onDragOver={(e) => {
                     e.preventDefault();
+                    if (dragOverFolderIndex !== i) setDragOverFolderIndex(i);
+                    // Also handle airdrop drop logic
                     setDragOverFolder(folder.id);
                   }}
-                  onDragLeave={() => setDragOverFolder(null)}
-                  onDrop={(e) => onDropToFolder(e, folder.id)}
+                  onDragLeave={() => {
+                    setDragOverFolder(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const sourceIdxFolder = e.dataTransfer.getData('sourceIndexFolder');
+                    if (sourceIdxFolder !== "") {
+                      handleReorderFolders(parseInt(sourceIdxFolder), i);
+                    } else {
+                      // Original drop logic for airdrops
+                      onDropToFolder(e, folder.id);
+                    }
+                    setDraggedFolderIndex(null);
+                    setDragOverFolderIndex(null);
+                    setDragOverFolder(null);
+                  }}
                   className={cn(
-                    "flex items-center gap-2 p-1 rounded-xl transition-all group/folder",
-                    isActive ? "bg-white/10" : isOver ? "bg-premium-accent/20 border border-dashed border-premium-accent" : "hover:bg-white/5"
+                    "flex items-center gap-2 p-1 rounded-xl transition-all group/folder relative",
+                    isActive ? "bg-white/10" : isOver ? "bg-premium-accent/20 border border-dashed border-premium-accent" : "hover:bg-white/5",
+                    isFolderDragged && "opacity-20",
+                    isFolderDragOver && !isFolderDragged && "after:content-[''] after:absolute after:top-0 after:left-0 after:right-0 after:h-0.5 after:bg-premium-accent after:animate-pulse"
                   )}
                 >
                   <Link
@@ -245,20 +320,10 @@ export function Navigation() {
                     </span>
                   </Link>
                   <button 
-                    onClick={async (e) => {
+                    onClick={(e) => {
                       e.preventDefault();
-                      try {
-                        const batch = writeBatch(db);
-                        const q = query(collection(db, 'airdrops'), where('folderId', '==', folder.id));
-                        const snap = await getDocs(q);
-                        snap.docs.forEach(doc => {
-                          batch.update(doc.ref, { folderId: null });
-                        });
-                        batch.delete(doc(db, 'projectFolders', folder.id));
-                        await batch.commit();
-                      } catch (err) {
-                        console.error(err);
-                      }
+                      setFolderToDelete(folder);
+                      setDeleteConfirmText('');
                     }}
                     className="hidden md:flex opacity-0 group-hover/folder:opacity-100 p-2 text-premium-muted hover:text-red-400 transition-all"
                   >
@@ -284,6 +349,66 @@ export function Navigation() {
           <span className="hidden md:block">Terminate</span>
         </button>
       </div>
+
+      {/* Folder Delete Confirmation Modal */}
+      {folderToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-premium-card border border-premium-border p-8 max-w-sm w-full rounded-2xl shadow-2xl space-y-6">
+            <div className="space-y-2">
+              <h3 className="text-xl font-black uppercase tracking-tighter text-white">Critical Deletion</h3>
+              <p className="text-xs text-premium-muted">
+                Type <span className="text-white font-mono font-bold">"{folderToDelete.name}"</span> to confirm sector termination. This action is irreversible.
+              </p>
+            </div>
+            
+            <input 
+              autoFocus
+              className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-sm text-white focus:outline-none focus:border-red-500 transition-all"
+              placeholder="Verification required..."
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+            />
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setFolderToDelete(null)}
+                className="flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 text-premium-muted hover:bg-white/10 transition-all"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  if (deleteConfirmText !== folderToDelete.name) return;
+                  try {
+                    const batch = writeBatch(db);
+                    const q = query(collection(db, 'airdrops'), where('folderId', '==', folderToDelete.id));
+                    const snap = await getDocs(q);
+                    snap.docs.forEach(doc => {
+                      batch.update(doc.ref, { folderId: null });
+                    });
+                    batch.delete(doc(db, 'projectFolders', folderToDelete.id));
+                    await batch.commit();
+                    setFolderToDelete(null);
+                    setDeleteConfirmText('');
+                    navigate('/');
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
+                disabled={deleteConfirmText !== folderToDelete.name}
+                className={cn(
+                  "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                  deleteConfirmText === folderToDelete.name 
+                    ? "bg-red-500 text-white shadow-lg shadow-red-500/20" 
+                    : "bg-red-500/20 text-red-500/50 cursor-not-allowed"
+                )}
+              >
+                Destroy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
