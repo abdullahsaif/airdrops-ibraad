@@ -24,40 +24,21 @@ service cloud.firestore {
     }
 
     function isValidAirdrop(data) {
-      let requiredFields = ['name', 'status', 'ownerId'];
-      let isCreate = resource == null;
-      
-      return data.keys().hasAll(requiredFields)
+      return isSignedIn()
         && data.ownerId == request.auth.uid
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && data.status in ['active', 'upcoming', 'ended']
-        && (!data.keys().contains('url') || (data.url is string && data.url.size() <= 1024))
-        && (!data.keys().contains('frequency') || data.frequency in ['daily', '3-day', 'weekly', 'one-time'])
-        && (!data.keys().contains('difficulty') || data.difficulty in ['easy', 'medium', 'hard'])
-        && (!data.keys().contains('folderId') || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128))
-        && (!data.keys().contains('order') || data.order is number);
+        && data.name is string && data.name.size() > 0;
     }
 
     function isValidProjectFolder(data) {
-      return data.ownerId == request.auth.uid
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 64;
-    }
-
-    function isValidFolder(data) {
-      return data.keys().hasAll(['airdropId', 'name', 'ownerId', 'difficulty'])
+      return isSignedIn()
         && data.ownerId == request.auth.uid
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 50
-        && data.difficulty in ['easy', 'medium', 'hard', 'custom']
-        && (data.keys().contains('color') ? data.color is string && data.color.size() <= 20 : true);
+        && data.name is string && data.name.size() > 0;
     }
 
     function isValidTask(data) {
-      return data.keys().hasAll(['airdropId', 'name', 'ownerId', 'status'])
+      return isSignedIn()
         && data.ownerId == request.auth.uid
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
-        && data.status in ['pending', 'completed']
-        && (!data.keys().contains('folderId') || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128))
-        && (!data.keys().contains('steps') || (data.steps is list && data.steps.size() <= 50));
+        && data.name is string && data.name.size() > 0;
     }
 
     // --- Match Rules ---
@@ -68,35 +49,19 @@ service cloud.firestore {
     }
 
     match /airdrops/{airdropId} {
-      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isSignedIn() && isValidAirdrop(incoming());
-      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidAirdrop(incoming())
-        && incoming().ownerId == existing().ownerId;
-      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+      allow read, write: if isSignedIn();
     }
 
     match /projectFolders/{folderId} {
-      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isSignedIn() && isValidProjectFolder(incoming());
-      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidProjectFolder(incoming())
-        && incoming().ownerId == existing().ownerId;
-      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+      allow read, write: if isSignedIn();
     }
 
     match /folders/{folderId} {
-      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isSignedIn() && isValidFolder(incoming());
-      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidFolder(incoming())
-        && incoming().ownerId == existing().ownerId;
-      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+      allow read, write: if isSignedIn();
     }
 
     match /tasks/{taskId} {
-      allow list, get: if isSignedIn() && resource.data.ownerId == request.auth.uid;
-      allow create: if isSignedIn() && isValidTask(incoming());
-      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidTask(incoming())
-        && incoming().ownerId == existing().ownerId;
-      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+      allow read, write: if isSignedIn();
     }
   }
 }

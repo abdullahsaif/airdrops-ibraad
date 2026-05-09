@@ -972,8 +972,10 @@ function AirdropModal({
       }
       onSuccess();
     } catch (error: any) {
-      console.error("Submission failed:", error);
-      alert("Failed to save protocol: " + (error.message || "Unknown error"));
+      console.error("Submission failed. Error object:", error);
+      console.error("Error code:", error.code);
+      console.error("Error details:", error.details);
+      alert("Failed to save protocol: " + (error.message || "Unknown error") + "\nCheck console for details.");
       handleFirestoreError(error, airdrop ? OperationType.UPDATE : OperationType.CREATE, 'airdrops');
     }
   };
