@@ -417,9 +417,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-premium-bg text-premium-text font-sans selection:bg-premium-accent selection:text-white">
       <Navigation />
-      <main className="pl-20 md:pl-64 min-h-screen relative">
+      <main className="pl-20 md:pl-72 min-h-screen relative transition-all">
         <div className="absolute top-0 right-0 w-1/3 h-64 bg-premium-accent/5 blur-[100px] pointer-events-none" />
-        <div className="max-w-6xl mx-auto p-6 md:p-12 relative z-10">
+        <div className="max-w-[1600px] mx-auto p-6 md:p-10 relative z-10">
           {children}
         </div>
       </main>

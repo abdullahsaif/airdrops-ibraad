@@ -26,6 +26,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { folderId } = useParams();
   const [airdrops, setAirdrops] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [folders, setFolders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -34,6 +35,7 @@ export function Dashboard() {
   const [isChainMode, setIsChainMode] = useState(false);
   const sessionWinRef = useRef<Window | null>(null);
   const [isOpening, setIsOpening] = useState(false);
+  const [popupBlocked, setPopupBlocked] = useState(false);
 
   const [showHelpModal, setShowHelpModal] = useState(false);
 
@@ -69,6 +71,7 @@ export function Dashboard() {
           }
 
           setIsOpening(true);
+          setPopupBlocked(false);
           const newWin = window.open(airdrop.url, '_blank');
           
           if (newWin) {
@@ -80,6 +83,7 @@ export function Dashboard() {
             console.log("Auto-open blocked or failed");
             setNextReady(true);
             setIsOpening(false);
+            setPopupBlocked(true);
           }
         } else {
           navigate(`/airdrop/${airdrop.id}`);
@@ -103,10 +107,10 @@ export function Dashboard() {
     if (targetId) {
       sessionWinRef.current = null;
       setNextReady(false);
+      setPopupBlocked(false);
       setIsChainMode(true);
-      setTimeout(() => {
-        handleSetActive(targetId, true);
-      }, 100);
+      // Trigger first one immediately to improve chances against popup blockers
+      handleSetActive(targetId, true);
     }
   };
 
@@ -181,9 +185,24 @@ export function Dashboard() {
         }
       }
 
-      if (e.key === 'Enter' && lastActiveId && !isChainMode) {
+      if (e.key === 'Enter' && lastActiveId) {
         e.preventDefault();
-        handleSetActive(lastActiveId, true);
+        if (nextReady) {
+          const currentIndex = airdrops.findIndex(a => a.id === lastActiveId);
+          if (currentIndex !== -1 && currentIndex < airdrops.length - 1) {
+            handleSetActive(airdrops[currentIndex + 1].id, true);
+          }
+        } else {
+          handleSetActive(lastActiveId, true);
+        }
+      }
+
+      if (e.key === ' ' && lastActiveId && nextReady) {
+        e.preventDefault();
+        const currentIndex = airdrops.findIndex(a => a.id === lastActiveId);
+        if (currentIndex !== -1 && currentIndex < airdrops.length - 1) {
+          handleSetActive(airdrops[currentIndex + 1].id, true);
+        }
       }
     };
 
@@ -221,7 +240,7 @@ export function Dashboard() {
           setNextReady(false);
         }
       }
-    }, 1000);
+    }, 500);
     
     return () => clearInterval(interval);
   }, [isChainMode, lastActiveId, airdrops, isOpening]);
@@ -253,7 +272,12 @@ export function Dashboard() {
           const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
           const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
           if (orderA !== orderB) return orderA - orderB;
-          return (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0);
+          
+          // Use Date.now() as fallback for items without a resolved timestamp yet
+          // to ensure new items appear at the end among items with the same order.
+          const timeA = a.createdAt?.toMillis?.() || Date.now();
+          const timeB = b.createdAt?.toMillis?.() || Date.now();
+          return timeA - timeB;
         });
 
         // Filter based on route (if in folder view or unclassified)
@@ -266,9 +290,14 @@ export function Dashboard() {
 
         setAirdrops(filteredData);
         
-        // Auto-set the first card as active on fresh load/refresh
-        if (filteredData.length > 0 && !lastActiveId) {
-          setLastActiveId(filteredData[0].id);
+        // Reset or update lastActiveId when folder changes or list refreshes
+        if (filteredData.length > 0) {
+          const stillExists = filteredData.find(a => a.id === lastActiveId);
+          if (!stillExists) {
+            setLastActiveId(filteredData[0].id);
+          }
+        } else {
+          setLastActiveId(null);
         }
         
         setLoading(false);
@@ -296,9 +325,9 @@ const stats = {
     try {
       const batch = writeBatch(db);
       
-      // Delete associated folders
+      // Delete associated neural sectors if any (though usually folders belong to airdrops in this schema)
       const folderSnap = await getDocs(query(
-        collection(db, 'folders'), 
+        collection(db, 'projectFolders'), 
         where('airdropId', '==', airdropId),
         where('ownerId', '==', user.uid)
       ));
@@ -354,14 +383,36 @@ const stats = {
     <div className="space-y-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-premium-border pb-10">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-premium-accent text-[10px] font-black uppercase tracking-[0.3em] italic">
-            <div className="w-1.5 h-1.5 bg-premium-accent rounded-full animate-pulse" />
-            Operational Hub
+        <div className="space-y-4 flex-1">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-premium-accent text-[10px] font-black uppercase tracking-[0.3em] italic">
+              <div className="w-1.5 h-1.5 bg-premium-accent rounded-full animate-pulse" />
+              Operational Hub
+            </div>
+            <h1 className="text-5xl font-display font-extrabold uppercase tracking-tighter text-white">
+              {currentFolder ? currentFolder.name : 'Command Center'}
+            </h1>
           </div>
-          <h1 className="text-5xl font-display font-extrabold uppercase tracking-tighter text-white">
-            {currentFolder ? currentFolder.name : 'Command Center'}
-          </h1>
+
+          <div className="relative group max-w-md">
+            <input 
+              id="search-input"
+              type="text"
+              placeholder="QUICK SEARCH ( / )"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/5 border border-premium-border/50 p-3 pl-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white placeholder:text-premium-muted/50 focus:outline-none focus:border-premium-accent focus:bg-white/10 transition-all shadow-inner"
+            />
+            <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-premium-muted group-focus-within:text-premium-accent transition-colors opacity-50" />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-premium-muted hover:text-white uppercase tracking-tighter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
@@ -410,7 +461,7 @@ const stats = {
             </div>
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.2em] text-premium-accent mb-1 flex items-center gap-2">
-                {nextReady ? 'Mission Complete - Next Optimized' : 'Mission Chain Active'}
+                {nextReady ? (popupBlocked ? 'Pop-up Blocked - Action Required' : 'Mission Complete - Next Optimized') : 'Mission Chain Active'}
                 <span className="flex gap-1">
                   {[1, 2, 3].map(i => (
                     <div key={i} className="w-1 h-1 bg-premium-accent rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
@@ -419,8 +470,10 @@ const stats = {
               </div>
               <div className="text-xs text-white/70 font-medium">
                 {nextReady 
-                  ? "Previous target neutralized. Next sector is primed and ready for deployment."
-                  : "System is tracking your session. Close your current tab to unlock the next sector."}
+                  ? (popupBlocked 
+                      ? "The browser blocked the neural link. Click 'Launch Next' or press ENTER to override." 
+                      : "Previous target neutralized. Next sector is primed for deployment.")
+                  : "System is tracking your session. Close your current tab (Ctrl+W) to unlock the next sector."}
               </div>
             </div>
           </div>
@@ -543,9 +596,11 @@ const stats = {
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-stretch justify-center md:justify-start gap-y-12 gap-x-2 md:gap-x-4">
-            {airdrops.map((airdrop, i) => (
-              <React.Fragment key={airdrop.id}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-y-12 gap-x-6">
+            {airdrops
+              .filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((airdrop, i) => (
+              <div key={airdrop.id} className="flex items-center gap-4">
                 <div 
                   id={`airdrop-card-${airdrop.id}`}
                   draggable
@@ -577,7 +632,7 @@ const stats = {
                     setDragOverIndex(null);
                   }}
                   className={cn(
-                    "transition-all duration-300 ease-in-out relative select-none w-full sm:w-[calc(50%-1.5rem)] lg:w-[calc(33.333%-2rem)] 2xl:w-[calc(16.66%-2rem)] min-w-[200px]",
+                    "transition-all duration-300 ease-in-out relative select-none flex-1 h-full",
                     draggedIndex === i ? "opacity-20 scale-95" : "opacity-100 scale-100 cursor-grab active:cursor-grabbing",
                     dragOverIndex === i && draggedIndex !== i ? "after:content-[''] after:absolute after:top-0 after:left-0 after:right-0 after:h-1 after:bg-premium-accent after:rounded-full after:animate-pulse z-40 transform translate-y-3" : ""
                   )}
@@ -591,8 +646,9 @@ const stats = {
                     onDelete={() => handleDeleteAirdrop(airdrop.id)}
                   />
                 </div>
+                
                 {i < airdrops.length - 1 && (
-                  <div className="hidden sm:flex items-center justify-center -mx-2 md:-mx-4 z-10 self-center">
+                  <div className="hidden lg:flex items-center justify-center shrink-0 -mr-10 z-10">
                     <motion.div
                       animate={{ 
                         x: [0, 4, 0],
@@ -605,11 +661,11 @@ const stats = {
                       }}
                       className="text-premium-accent drop-shadow-[0_0_12px_rgba(37,99,235,0.3)]"
                     >
-                      <MoveRight className="w-4 h-4 md:w-5 md:h-5" />
+                      <MoveRight className="w-5 h-5" />
                     </motion.div>
                   </div>
                 )}
-              </React.Fragment>
+              </div>
             ))}
           </div>
         )}
@@ -671,6 +727,14 @@ const stats = {
                 </div>
               ))}
             </div>
+
+            <div className="pt-4 border-t border-white/10 space-y-2">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-white">System Deployment</h4>
+              <p className="text-[9px] text-premium-muted leading-relaxed uppercase">
+                Use the <span className="text-premium-accent font-bold">SHARE</span> button (top right) for your permanent link. For a small URL, use bit.ly or tinyurl.com with your shared link.
+              </p>
+            </div>
+
             <p className="text-[9px] text-center text-premium-muted uppercase tracking-widest font-black">Speed is the only strategy.</p>
           </motion.div>
         </div>
@@ -888,8 +952,8 @@ function AirdropModal({
     if (!user) return;
     try {
       const data = {
-        name,
-        url,
+        name: name.trim(),
+        url: url.trim(),
         status,
         frequency,
         difficulty,
@@ -904,11 +968,12 @@ function AirdropModal({
           ...data,
           ownerId: user.uid,
           createdAt: serverTimestamp(),
-          order: folders.length, // Simple default order
         });
       }
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Submission failed:", error);
+      alert("Failed to save protocol: " + (error.message || "Unknown error"));
       handleFirestoreError(error, airdrop ? OperationType.UPDATE : OperationType.CREATE, 'airdrops');
     }
   };

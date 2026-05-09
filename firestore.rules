@@ -24,12 +24,14 @@ service cloud.firestore {
     }
 
     function isValidAirdrop(data) {
-      return data.keys().hasAll(['name', 'status', 'ownerId', 'createdAt', 'updatedAt'])
+      let requiredFields = ['name', 'status', 'ownerId'];
+      let isCreate = resource == null;
+      
+      return data.keys().hasAll(requiredFields)
         && data.ownerId == request.auth.uid
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.status in ['active', 'upcoming', 'ended']
-        && data.createdAt == (resource == null ? request.time : existing().createdAt)
-        && (!data.keys().contains('url') || (data.url is string && data.url.size() <= 512))
+        && (!data.keys().contains('url') || (data.url is string && data.url.size() <= 1024))
         && (!data.keys().contains('frequency') || data.frequency in ['daily', '3-day', 'weekly', 'one-time'])
         && (!data.keys().contains('difficulty') || data.difficulty in ['easy', 'medium', 'hard'])
         && (!data.keys().contains('folderId') || data.folderId == null || (data.folderId is string && data.folderId.size() <= 128))
