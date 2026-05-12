@@ -30,19 +30,46 @@
 }
 
 @utility premium-card-border {
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   transition-property: all;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   transition-duration: 700ms;
   &:hover {
-    border-color: rgba(59, 130, 246, 0.3);
-    box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(255, 255, 255, 0.02);
   }
 }
 
+@utility premium-active-glow {
+  border-color: rgba(59, 130, 246, 1);
+  box-shadow: 
+    0 0 80px rgba(59, 130, 246, 0.2),
+    inset 0 0 40px rgba(59, 130, 246, 0.1);
+  background: linear-gradient(180deg, #161622 0%, rgba(59, 130, 246, 0.18) 100%);
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.3), transparent 70%);
+    pointer-events: none;
+    opacity: 0.8;
+  }
+}
+
+@keyframes premium-border-flow {
+  0% { transform: opacity(0.5) scale(1); }
+  50% { transform: opacity(1) scale(1.02); }
+  100% { transform: opacity(0.5) scale(1); }
+}
+
 .premium-gradient-card {
-  background: linear-gradient(180deg, #0E0E12 0%, #08080B 100%);
+  background: linear-gradient(180deg, #0E0E12 0%, #060608 100%);
   @apply premium-card-border;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%) skewX(-20deg); }
+  100% { transform: translateX(250%) skewX(-20deg); }
 }
 
 @utility premium-button {
@@ -55,10 +82,10 @@
   letter-spacing: 0.1em;
   font-size: 11px;
   transition-property: all;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  transition-duration: 400ms;
   &:active {
-    scale: 0.98;
+    scale: 0.96;
   }
 }
 

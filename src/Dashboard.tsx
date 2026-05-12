@@ -60,11 +60,11 @@ export function Dashboard() {
     if (autoOpen) {
       if (isOpeningRef.current) return;
       
-      // Minimum gap between ANY automated launch (1.5s)
-      if (now - lastLaunchTimeRef.current < 1500) return;
+      // Minimum gap between ANY automated launch (800ms)
+      if (now - lastLaunchTimeRef.current < 800) return;
 
-      // Duplicate guard (3s for same ID)
-      if (lastLaunchIdRef.current === id && now - lastLaunchTimeRef.current < 3000) return;
+      // Duplicate guard (2s for same ID)
+      if (lastLaunchIdRef.current === id && now - lastLaunchTimeRef.current < 2000) return;
     }
 
     setLastActiveId(id);
@@ -103,11 +103,11 @@ export function Dashboard() {
           
           if (newWin) {
             sessionWinRef.current = newWin;
-            // Lock for 2s to allow the OS/Browser to handle the new tab
+            // Lock for 800ms to allow the OS/Browser to handle the new tab
             setTimeout(() => {
               setIsOpening(false);
               launchLockRef.current = false;
-            }, 2000);
+            }, 800);
           } else {
             console.log("Transmission intercepted by popup-guard");
             setNextReady(true);
@@ -256,42 +256,69 @@ export function Dashboard() {
   const lastActiveIdRef = useRef(lastActiveId);
   const isChainModeRef = useRef(isChainMode);
 
+  const foldersRef = useRef(folders);
+
   useEffect(() => {
     airdropsRef.current = airdrops;
     lastActiveIdRef.current = lastActiveId;
     isChainModeRef.current = isChainMode;
-  }, [airdrops, lastActiveId, isChainMode]);
+    foldersRef.current = folders;
+  }, [airdrops, lastActiveId, isChainMode, folders]);
+
+  const checkAndAdvanceChain = async () => {
+    if (!isChainModeRef.current) return;
+
+    if (sessionWinRef.current && (sessionWinRef.current.closed || !sessionWinRef.current.window)) {
+      console.log("Bridge protocol: Sector neutralized, jumping to next coordinate.");
+      sessionWinRef.current = null;
+      
+      if (launchLockRef.current || isOpeningRef.current) return;
+
+      const currentAirdrops = airdropsRef.current;
+      const currentActiveId = lastActiveIdRef.current;
+      const currentIndex = currentAirdrops.findIndex(a => a.id === currentActiveId);
+
+      if (currentIndex !== -1 && currentIndex < currentAirdrops.length - 1) {
+        const nextAirdrop = currentAirdrops[currentIndex + 1];
+        const now = Date.now();
+        if (now - lastLaunchTimeRef.current > 800) {
+          handleSetActive(nextAirdrop.id, true);
+        }
+      } else {
+        // End of current folder/list reached
+        // Check if we should jump to next folder
+        const currentFolders = foldersRef.current;
+        if (folderId && currentFolders.length > 0) {
+          const currentFolderIdx = currentFolders.findIndex(f => f.id === folderId);
+          if (currentFolderIdx !== -1 && currentFolderIdx < currentFolders.length - 1) {
+            const nextFolder = currentFolders[currentFolderIdx + 1];
+            console.log(`Transitioning to next sector cluster: ${nextFolder.name}`);
+            navigate(`/folder/${nextFolder.id}`);
+            // The chain logic will resume in the new folder via useEffect
+            return;
+          }
+        }
+        
+        console.log("Strategic objectives finalized.");
+        setIsChainMode(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Exit if not in chain mode or window is still opening
-      if (!isChainModeRef.current || isOpeningRef.current || launchLockRef.current) return;
-
-      // If a window was open and is now closed
-      if (sessionWinRef.current && sessionWinRef.current.closed) {
-        console.log("Bridge protocol: Sector neutralized, jumping to next coordinate.");
-        sessionWinRef.current = null;
-        
-        const currentAirdrops = airdropsRef.current;
-        const currentActiveId = lastActiveIdRef.current;
-        const currentIndex = currentAirdrops.findIndex(a => a.id === currentActiveId);
-
-        if (currentIndex !== -1 && currentIndex < currentAirdrops.length - 1) {
-          const nextAirdrop = currentAirdrops[currentIndex + 1];
-          const now = Date.now();
-          // Ensure we don't rapid fire from interval glitch
-          if (now - lastLaunchTimeRef.current > 2000) {
-            handleSetActive(nextAirdrop.id, true);
-          }
-        } else {
-          console.log("Strategic objectives finalized.");
-          setIsChainMode(false);
-        }
-      }
-    }, 1000); // 1s interval is more than enough and more stable
+    const interval = setInterval(checkAndAdvanceChain, 300);
     
-    return () => clearInterval(interval);
-  }, []); // Run once, use refs for dynamic state
+    // Also check on window focus for immediate feedback when a tab is closed
+    const handleFocus = () => {
+      checkAndAdvanceChain();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [folderId]); // Re-bind if folder changes
 
   useEffect(() => {
     if (!user) return;
@@ -428,72 +455,64 @@ const stats = {
   };
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-20 max-w-[1920px] mx-auto px-4 md:px-8 xl:px-12 pb-32">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 pb-10">
-        <div className="space-y-6 flex-1">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="px-2.5 py-1 rounded-md bg-premium-accent/10 border border-premium-accent/20">
-                <div className="flex items-center gap-2 text-premium-accent text-[10px] font-bold uppercase tracking-[0.2em]">
-                  <Activity className="w-3 h-3 animate-pulse" />
-                  System Online
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-12 pt-12">
+        <div className="space-y-8 flex-1">
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="px-3 py-1.5 rounded-full bg-premium-accent/10 border border-premium-accent/30 backdrop-blur-3xl shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+                <div className="flex items-center gap-3 text-premium-accent text-[11px] font-black uppercase tracking-[0.4em]">
+                  <Activity className="w-4 h-4 animate-pulse" />
+                  Neural Network Online
                 </div>
               </div>
-              <div className="h-px flex-1 bg-white/[0.05]" />
+              <div className="h-[2px] w-24 bg-gradient-to-r from-premium-accent/40 to-transparent" />
             </div>
-            <h1 className="text-6xl md:text-7xl font-display font-extrabold uppercase tracking-tight text-white leading-none">
-              <span className="text-gradient">
+            <h1 className="text-7xl md:text-8xl lg:text-9xl font-display font-black uppercase tracking-tighter text-white leading-none">
+              <span className="text-gradient drop-shadow-2xl">
                 {currentFolder ? currentFolder.name : 'Vanguard'}
               </span>
-              <span className="text-premium-accent block md:inline md:ml-4 text-4xl md:text-5xl opacity-50">.OS</span>
+              <span className="text-premium-accent/30 block md:inline md:ml-6 text-5xl md:text-6xl tracking-[0.2em] font-mono">_OS</span>
             </h1>
           </div>
 
-          <div className="relative group max-w-md">
+          <div className="relative group max-w-xl">
             <input 
               id="search-input"
               type="text"
-              placeholder="QUICK SEARCH ( / )"
+              placeholder="SEARCH DATA STREAM..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/[0.02] border border-white/[0.08] p-4 pl-12 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-white placeholder:text-premium-muted/30 focus:outline-none focus:border-premium-accent/50 focus:bg-white/[0.05] transition-all"
+              className="w-full bg-white/[0.01] border border-white/[0.08] p-6 pl-14 rounded-3xl text-sm font-black uppercase tracking-[0.3em] text-white placeholder:text-premium-muted/20 focus:outline-none focus:border-premium-accent/60 focus:bg-white/[0.03] transition-all shadow-2xl backdrop-blur-3xl"
             />
-            <Activity className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-premium-muted group-focus-within:text-premium-accent transition-colors opacity-30" />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-premium-muted hover:text-white uppercase tracking-widest"
-              >
-                Clear
-              </button>
-            )}
+            <Activity className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-premium-accent opacity-20 group-focus-within:opacity-100 transition-opacity" />
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-6">
           <button
             onClick={toggleChainMode}
             className={cn(
-              "premium-button px-7 py-4",
+              "premium-button px-10 py-6 rounded-3xl text-[12px] tracking-[0.4em]",
               isChainMode 
-                ? "bg-premium-accent text-white shadow-[0_0_30px_rgba(59,130,246,0.3)]" 
-                : "bg-white/[0.03] text-premium-muted border border-white/[0.08] hover:border-premium-accent/40 hover:text-white"
+                ? "bg-premium-accent text-white shadow-[0_0_40px_rgba(59,130,246,0.4)]" 
+                : "bg-white/[0.02] text-premium-muted border border-white/[0.1] hover:border-premium-accent/60 hover:text-white backdrop-blur-3xl"
             )}
           >
-            <div className="flex items-center gap-3">
-              <Shield className={cn("w-4 h-4", isChainMode && "animate-pulse")} />
-              {isChainMode ? 'Sequence Mode: Active' : 'Initiate Chain'}
+            <div className="flex items-center gap-4">
+              <Shield className={cn("w-5 h-5", isChainMode && "animate-pulse")} />
+              {isChainMode ? 'CHAIN MODE: ACTIVE' : 'INITIALIZE CHAIN'}
             </div>
           </button>
           
           <button 
             onClick={() => setShowNewModal(true)}
-            className="premium-button-primary px-10 py-5 text-xs"
+            className="premium-button-primary px-12 py-6 text-[12px] tracking-[0.4em] rounded-3xl shadow-[0_0_40px_rgba(59,130,246,0.2)]"
           >
-            <div className="flex items-center gap-3">
-              <Plus className="w-5 h-5" />
-              Analyze New Protocol
+            <div className="flex items-center gap-4">
+              <Plus className="w-6 h-6" />
+              NEW MISSION
             </div>
           </button>
         </div>
@@ -658,12 +677,12 @@ const stats = {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-y-12 gap-x-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-y-12 gap-x-8">
             {airdrops
               .filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()))
               .map((airdrop, i) => (
-              <div key={airdrop.id} className="flex items-center gap-4">
                 <div 
+                  key={airdrop.id}
                   id={`airdrop-card-${airdrop.id}`}
                   draggable
                   onDragStart={(e) => {
@@ -694,7 +713,7 @@ const stats = {
                     setDragOverIndex(null);
                   }}
                   className={cn(
-                    "transition-all duration-300 ease-in-out relative select-none flex-1 h-full",
+                    "transition-all duration-700 ease-in-out relative select-none flex flex-col min-h-[560px] h-full",
                     draggedIndex === i ? "opacity-20 scale-95" : "opacity-100 scale-100 cursor-grab active:cursor-grabbing",
                     dragOverIndex === i && draggedIndex !== i ? "after:content-[''] after:absolute after:top-0 after:left-0 after:right-0 after:h-1 after:bg-premium-accent after:rounded-full after:animate-pulse z-40 transform translate-y-3" : ""
                   )}
@@ -708,26 +727,6 @@ const stats = {
                     onDelete={() => handleDeleteAirdrop(airdrop.id)}
                   />
                 </div>
-                
-                {i < airdrops.length - 1 && (
-                  <div className="hidden lg:flex items-center justify-center shrink-0 -mr-10 z-10">
-                    <motion.div
-                      animate={{ 
-                        x: [0, 4, 0],
-                        opacity: [0.3, 0.6, 0.3]
-                      }}
-                      transition={{ 
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: "linear"
-                      }}
-                      className="text-premium-accent drop-shadow-[0_0_12px_rgba(37,99,235,0.3)]"
-                    >
-                      <MoveRight className="w-5 h-5" />
-                    </motion.div>
-                  </div>
-                )}
-              </div>
             ))}
           </div>
         )}
@@ -842,12 +841,12 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ y: -12, scale: 1.02 }}
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -8 }}
       transition={{ 
         delay: index * 0.05, 
-        duration: 0.7,
+        duration: 0.8,
         ease: [0.23, 1, 0.32, 1]
       }}
       className="group relative h-full pointer-events-none"
@@ -868,109 +867,116 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
           }
         }}
         className={cn(
-          "premium-gradient-card rounded-[40px] group transition-all duration-700 overflow-hidden h-full flex flex-col cursor-pointer pointer-events-auto relative border border-white/[0.04]",
+          "premium-gradient-card rounded-[48px] group transition-all duration-700 overflow-hidden h-full flex flex-col cursor-pointer pointer-events-auto relative border",
           isActive 
-            ? "border-premium-accent/60 shadow-[0_0_50px_rgba(59,130,246,0.15)] bg-premium-accent/[0.05]" 
-            : "hover:border-white/[0.12] hover:bg-white/[0.02]"
+            ? "premium-active-glow ring-2 ring-premium-accent/40 scale-[1.02] shadow-[0_0_80px_rgba(59,130,246,0.15)]" 
+            : "border-white/[0.04] hover:border-white/[0.12] hover:bg-white/[0.01]"
         )}
       >
+        {/* Futury Glass Reflection */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.01] to-white/[0.03] pointer-events-none" />
+        
         {/* Futuristic Grid Accent */}
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none overflow-hidden">
-          <div className="absolute inset-0 border-[0.5px] border-white/20" style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        <div className="absolute inset-0 opacity-[0.02] pointer-events-none overflow-hidden">
+          <div className="absolute inset-0 border-[0.5px] border-white/20" style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
         </div>
 
-        {isActive && (
-          <div className="absolute top-0 right-0 p-6 z-10">
-            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-premium-accent/10 border border-premium-accent/30 backdrop-blur-2xl shadow-[0_0_20px_rgba(59,130,246,0.2)]">
-              <div className="w-2 h-2 bg-premium-accent rounded-full animate-pulse shadow-[0_0_8px_#3b82f6]" />
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-premium-accent">Neural Active</span>
-            </div>
-          </div>
-        )}
-        
-        <div className="p-10 space-y-10 flex-1 relative z-10">
+        <div className="p-10 space-y-12 flex-1 relative z-10 flex flex-col">
           {/* Top Bar with Badge and Actions */}
           <div className="flex items-center justify-between">
             <div 
               className={cn(
-                "px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-[0.3em] border flex items-center gap-2.5 transition-all duration-500",
+                "px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.4em] border flex items-center gap-3 transition-all duration-700",
                 airdrop.status === 'active' 
-                  ? "border-premium-accent/30 text-premium-accent bg-premium-accent/5 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
-                  : "border-white/10 text-premium-muted bg-white/5"
+                  ? "border-premium-accent/40 text-white bg-premium-accent/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]" 
+                  : "border-white/5 text-premium-muted bg-white/5",
+                isActive && "border-premium-accent/60 bg-premium-accent/20 shadow-[0_0_25px_rgba(59,130,246,0.2)]"
               )}
             >
-              <div className={cn("w-1.5 h-1.5 rounded-full", airdrop.status === 'active' ? "bg-premium-accent animate-pulse" : "bg-white/20")} />
+              <div className={cn("w-2 h-2 rounded-full", airdrop.status === 'active' || isActive ? "bg-premium-accent shadow-[0_0_8px_#3b82f6]" : "bg-white/10")} />
               {airdrop.status}
             </div>
             
-            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-4 group-hover:translate-x-0">
+            <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-700 translate-x-6 group-hover:translate-x-0">
               <button 
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(); }}
-                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/[0.03] text-premium-muted hover:text-white hover:bg-white/[0.1] hover:border-premium-accent/40 border border-white/[0.05] transition-all relative z-20"
+                className="w-12 h-12 flex items-center justify-center rounded-[20px] bg-white/[0.02] text-premium-muted hover:text-white hover:bg-white/[0.1] hover:border-premium-accent/40 border border-white/[0.05] transition-all relative z-20 shadow-inner"
               >
-                <Pencil className="w-4 h-4" />
+                <Pencil className="w-4.5 h-4.5" />
               </button>
               <button 
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
-                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/[0.03] text-premium-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40 border border-white/[0.05] transition-all relative z-20"
+                className="w-12 h-12 flex items-center justify-center rounded-[20px] bg-white/[0.02] text-premium-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40 border border-white/[0.05] transition-all relative z-20 shadow-inner"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-4.5 h-4.5" />
               </button>
             </div>
           </div>
-
+ 
           {/* Title Area */}
-          <div className="space-y-6">
-            <div className="flex items-center gap-7">
-              <div className="w-20 h-20 rounded-[28px] bg-white/[0.02] border border-white/[0.05] flex items-center justify-center overflow-hidden transition-all duration-700 group-hover:border-premium-accent/40 group-hover:bg-premium-accent/5 shadow-2xl relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="space-y-8 flex-1">
+            <div className="flex flex-col gap-8">
+              <div className={cn(
+                "w-24 h-24 rounded-[36px] bg-gradient-to-br from-white/[0.03] to-transparent border border-white/[0.08] flex items-center justify-center overflow-hidden transition-all duration-1000 group-hover:border-premium-accent/50 group-hover:scale-105 group-hover:rotate-3 shadow-2xl relative",
+                isActive && "border-premium-accent/60 bg-premium-accent/5 scale-105"
+              )}>
+                <div className="absolute inset-0 bg-premium-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 {airdrop.url ? (
                   <img 
                     src={getFaviconUrl(airdrop.url) || ''} 
                     alt="" 
-                    className="w-10 h-10 object-contain grayscale opacity-30 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700 relative z-10"
+                    className={cn(
+                      "w-12 h-12 object-contain grayscale opacity-40 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-1000 relative z-10",
+                      isActive && "grayscale-0 opacity-100 scale-110"
+                    )}
                     onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 ) : (
-                  <Shield className="w-10 h-10 text-premium-muted opacity-10" />
+                  <Shield className={cn("w-12 h-12 text-premium-muted opacity-10", isActive && "text-premium-accent opacity-40")} />
                 )}
               </div>
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex items-center gap-2 text-premium-accent text-[9px] font-black uppercase tracking-[0.4em]">
-                  <div className="w-1 h-1 bg-premium-accent rotate-45" />
+              <div className="min-w-0 space-y-3">
+                <div className={cn(
+                  "flex items-center gap-3 text-premium-accent text-[10px] font-black uppercase tracking-[0.5em] opacity-80",
+                  isActive && "opacity-100"
+                )}>
+                  <div className={cn("w-2 h-[2px] bg-premium-accent", isActive && "w-6")} />
                   Cluster {index + 1}
                 </div>
-                <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter truncate group-hover:text-premium-accent transition-all duration-300 transform group-hover:translate-x-1">
+                <h3 className={cn(
+                  "text-4xl font-display font-black text-white uppercase tracking-tighter group-hover:text-premium-accent transition-all duration-500 leading-none",
+                  isActive && "text-white drop-shadow-[0_0_20px_rgba(59,130,246,0.5)] scale-[1.05] translate-x-1"
+                )}>
                   {airdrop.name}
                 </h3>
-                <div className="flex items-center gap-3 mt-1.5 opacity-30 group-hover:opacity-60 transition-opacity">
-                  <Clock className="w-3 h-3 text-premium-muted" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-premium-muted">{getRelativeDays(airdrop.createdAt)} Deployment</span>
+                <div className="flex items-center gap-4 opacity-40 group-hover:opacity-80 transition-all duration-700">
+                  <div className="w-px h-4 bg-white/20" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-premium-muted">{getRelativeDays(airdrop.createdAt)} Operational</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Details Grid */}
-          <div className="grid grid-cols-2 gap-6 pt-10 border-t border-white/[0.04] relative">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-px bg-white/[0.1]" />
-            <div className="space-y-2">
-              <span className="text-[10px] font-black text-premium-muted uppercase tracking-[0.3em] opacity-30">Architecture</span>
-              <div className="flex items-center gap-2.5 text-white/90">
-                <div className="w-6 h-6 rounded-lg bg-premium-accent/10 border border-premium-accent/20 flex items-center justify-center">
-                  <Shield className="w-3.5 h-3.5 text-premium-accent" />
+          <div className="grid grid-cols-2 gap-8 pt-12 border-t border-white/[0.05] relative">
+            <div className="absolute top-0 left-0 w-12 h-[2px] bg-premium-accent/30" />
+            <div className="space-y-3">
+              <span className="text-[11px] font-black text-premium-muted uppercase tracking-[0.4em] opacity-40">Loadout</span>
+              <div className="flex items-center gap-3 text-white">
+                <div className="w-8 h-8 rounded-xl bg-white/[0.03] border border-white/[0.1] flex items-center justify-center group-hover:border-premium-accent/30 transition-colors">
+                  <Shield className="w-4 h-4 text-premium-accent" />
                 </div>
-                <span className="text-xs font-black tracking-tight">{tasks.length || 0} MODULES</span>
+                <span className="text-sm font-black tracking-tight">{tasks.length || 0} SECTORS</span>
               </div>
             </div>
-            <div className="space-y-2 text-right">
-              <span className="text-[10px] font-black text-premium-muted uppercase tracking-[0.3em] opacity-30">Frequency</span>
-              <div className="flex items-center gap-2.5 justify-end">
-                <span className="text-xs font-black uppercase tracking-widest text-zinc-300">
+            <div className="space-y-3 text-right">
+              <span className="text-[11px] font-black text-premium-muted uppercase tracking-[0.4em] opacity-40">Uplink</span>
+              <div className="flex items-center gap-3 justify-end">
+                <span className="text-sm font-black uppercase tracking-[0.2em] text-zinc-100">
                   {airdrop.frequency?.toUpperCase() || 'STABLE'}
                 </span>
-                <div className="w-6 h-6 rounded-lg bg-white/[0.03] border border-white/[0.1] flex items-center justify-center">
-                  <Calendar className="w-3.5 h-3.5 text-premium-muted" />
+                <div className="w-8 h-8 rounded-xl bg-white/[0.03] border border-white/[0.1] flex items-center justify-center group-hover:border-premium-accent/30 transition-colors">
+                  <Calendar className="w-4 h-4 text-premium-muted" />
                 </div>
               </div>
             </div>
@@ -978,11 +984,11 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
         </div>
 
         {/* Dynamic Action Area */}
-        <div className="p-3 gap-3 flex relative z-10 border-t border-white/[0.04] bg-white/[0.01]">
+        <div className="p-4 gap-4 flex relative z-10 border-t border-white/[0.05] bg-white/[0.01]">
           <button 
             className={cn(
-              "flex-1 premium-button text-[11px] font-black tracking-[0.3em] py-5 flex items-center justify-center gap-3 transition-all duration-700 rounded-[20px]",
-              airdrop.url ? "premium-button-primary shadow-[0_0_30px_rgba(59,130,246,0.15)]" : "premium-button-secondary"
+              "flex-1 premium-button text-[12px] font-black tracking-[0.4em] py-6 flex items-center justify-center gap-4 transition-all duration-1000 rounded-[28px] overflow-hidden group/btn relative",
+              airdrop.url ? "premium-button-primary" : "premium-button-secondary"
             )}
             onClick={(e) => {
               if (!airdrop.url) {
@@ -992,15 +998,18 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
               }
             }}
           >
+            {/* Gloss Shine Effect */}
+            <div className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/[0.1] to-transparent -skew-x-[20deg] -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite]" />
+            
             {airdrop.url ? (
               <>
-                INIT LINK
-                <MoveRight className="w-4 h-4 transition-transform group-hover:translate-x-2" />
+                INITIALIZE
+                <MoveRight className="w-5 h-5 transition-transform group-hover/btn:translate-x-3" />
               </>
             ) : (
               <>
-                COMMAND
-                <GripVertical className="w-4 h-4 opacity-50" />
+                INTERFACE
+                <GripVertical className="w-5 h-5 opacity-40" />
               </>
             )}
           </button>
@@ -1011,10 +1020,11 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
               onOpen?.(null);
               navigate(`/airdrop/${airdrop.id}`);
             }}
-            className="w-16 h-16 flex items-center justify-center rounded-[20px] bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.08] hover:border-premium-accent/40 text-premium-muted hover:text-white transition-all group/opt shadow-inner"
-            title="System Settings"
+            className="w-20 h-20 flex items-center justify-center rounded-[28px] bg-white/[0.02] border border-white/[0.08] hover:bg-white/[0.08] hover:border-premium-accent/60 text-premium-muted hover:text-white transition-all group/opt shadow-2xl relative overflow-hidden"
+            title="System Override"
           >
-            <Settings2 className="w-5 h-5 group-hover/opt:rotate-90 transition-transform duration-700" />
+            <div className="absolute inset-0 bg-premium-accent/5 opacity-0 group-hover/opt:opacity-100 transition-opacity" />
+            <Settings2 className="w-6 h-6 group-hover/opt:rotate-180 transition-transform duration-1000 relative z-10" />
           </button>
         </div>
       </div>
