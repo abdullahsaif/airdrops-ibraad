@@ -33,6 +33,7 @@ export function Dashboard() {
   const [editingAirdrop, setEditingAirdrop] = useState<any>(null);
   const [lastActiveId, setLastActiveId] = useState<string | null>(null);
   const [isChainMode, setIsChainMode] = useState(false);
+  const isTransitioningRef = useRef(false);
   const sessionWinRef = useRef<Window | null>(null);
   const isOpeningRef = useRef(false);
   const [isOpening, setIsOpeningState] = useState(false);
@@ -60,11 +61,11 @@ export function Dashboard() {
     if (autoOpen) {
       if (isOpeningRef.current) return;
       
-      // Minimum gap between ANY automated launch (800ms)
-      if (now - lastLaunchTimeRef.current < 800) return;
+      // Minimum gap between ANY automated launch (600ms)
+      if (now - lastLaunchTimeRef.current < 600) return;
 
-      // Duplicate guard (2s for same ID)
-      if (lastLaunchIdRef.current === id && now - lastLaunchTimeRef.current < 2000) return;
+      // Duplicate guard (1.2s for same ID)
+      if (lastLaunchIdRef.current === id && now - lastLaunchTimeRef.current < 1200) return;
     }
 
     setLastActiveId(id);
@@ -83,7 +84,8 @@ export function Dashboard() {
     
     if (autoOpen) {
       launchLockRef.current = true;
-      const airdrop = airdrops.find(a => a.id === id);
+      const currentAirdrops = airdropsRef.current;
+      const airdrop = currentAirdrops.find(a => a.id === id);
       
       if (airdrop && airdrop.url) {
         // Final sanity check on window state
@@ -99,15 +101,17 @@ export function Dashboard() {
         setNextReady(false);
         
         try {
+          // IMPORTANT: Browsers often block automatic window.open
+          // We try our best here. If it fails, nextReady UI will show.
           const newWin = window.open(airdrop.url, '_blank');
           
           if (newWin) {
             sessionWinRef.current = newWin;
-            // Lock for 800ms to allow the OS/Browser to handle the new tab
+            // Lock for 600ms to allow the OS/Browser to handle the new tab
             setTimeout(() => {
               setIsOpening(false);
               launchLockRef.current = false;
-            }, 800);
+            }, 600);
           } else {
             console.log("Transmission intercepted by popup-guard");
             setNextReady(true);
@@ -255,7 +259,6 @@ export function Dashboard() {
   const airdropsRef = useRef(airdrops);
   const lastActiveIdRef = useRef(lastActiveId);
   const isChainModeRef = useRef(isChainMode);
-
   const foldersRef = useRef(folders);
 
   useEffect(() => {
@@ -266,41 +269,46 @@ export function Dashboard() {
   }, [airdrops, lastActiveId, isChainMode, folders]);
 
   const checkAndAdvanceChain = async () => {
-    if (!isChainModeRef.current) return;
+    if (!isChainModeRef.current || isTransitioningRef.current) return;
 
-    if (sessionWinRef.current && (sessionWinRef.current.closed || !sessionWinRef.current.window)) {
-      console.log("Bridge protocol: Sector neutralized, jumping to next coordinate.");
-      sessionWinRef.current = null;
+    // Check if the managed window is closed
+    const isClosed = !sessionWinRef.current || sessionWinRef.current.closed;
+
+    if (isClosed) {
+      if (sessionWinRef.current) {
+        console.log("Bridge protocol: Sector neutralized, jumping to next coordinate.");
+        sessionWinRef.current = null;
+      }
       
       if (launchLockRef.current || isOpeningRef.current) return;
 
       const currentAirdrops = airdropsRef.current;
+      
+      // If we have no airdrops loaded yet, wait
+      if (currentAirdrops.length === 0) return;
+
       const currentActiveId = lastActiveIdRef.current;
       const currentIndex = currentAirdrops.findIndex(a => a.id === currentActiveId);
 
+      // Scenario 1: We found the current card and there's a next one in this folder
       if (currentIndex !== -1 && currentIndex < currentAirdrops.length - 1) {
         const nextAirdrop = currentAirdrops[currentIndex + 1];
         const now = Date.now();
         if (now - lastLaunchTimeRef.current > 800) {
           handleSetActive(nextAirdrop.id, true);
         }
-      } else {
-        // End of current folder/list reached
-        // Check if we should jump to next folder
-        const currentFolders = foldersRef.current;
-        if (folderId && currentFolders.length > 0) {
-          const currentFolderIdx = currentFolders.findIndex(f => f.id === folderId);
-          if (currentFolderIdx !== -1 && currentFolderIdx < currentFolders.length - 1) {
-            const nextFolder = currentFolders[currentFolderIdx + 1];
-            console.log(`Transitioning to next sector cluster: ${nextFolder.name}`);
-            navigate(`/folder/${nextFolder.id}`);
-            // The chain logic will resume in the new folder via useEffect
-            return;
-          }
+      } 
+      // Scenario 2: End of folder reached or card not found
+      else {
+        // We REMOVED the automatic folder jump based on user feedback.
+        // It stays in the current folder.
+        if (currentIndex === -1 && currentAirdrops.length > 0) {
+          // If we are in folder and nothing is active, start from first
+          handleSetActive(currentAirdrops[0].id, true);
+        } else {
+          console.log("Strategic objectives finalized for this sector.");
+          setIsChainMode(false);
         }
-        
-        console.log("Strategic objectives finalized.");
-        setIsChainMode(false);
       }
     }
   };
@@ -364,6 +372,7 @@ export function Dashboard() {
         }
 
         setAirdrops(filteredData);
+        isTransitioningRef.current = false;
         
         // Reset or update lastActiveId when folder changes or list refreshes
         if (filteredData.length > 0) {
@@ -869,7 +878,7 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
         className={cn(
           "premium-gradient-card rounded-[48px] group transition-all duration-700 overflow-hidden h-full flex flex-col cursor-pointer pointer-events-auto relative border",
           isActive 
-            ? "premium-active-glow ring-2 ring-premium-accent/40 scale-[1.02] shadow-[0_0_80px_rgba(59,130,246,0.15)]" 
+            ? "premium-active-glow ring-2 ring-premium-accent/50 scale-[1.03] shadow-[0_0_100px_rgba(59,130,246,0.25)]" 
             : "border-white/[0.04] hover:border-white/[0.12] hover:bg-white/[0.01]"
         )}
       >
@@ -890,11 +899,11 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
                 airdrop.status === 'active' 
                   ? "border-premium-accent/40 text-white bg-premium-accent/10 shadow-[0_0_20px_rgba(59,130,246,0.1)]" 
                   : "border-white/5 text-premium-muted bg-white/5",
-                isActive && "border-premium-accent/60 bg-premium-accent/20 shadow-[0_0_25px_rgba(59,130,246,0.2)]"
+                isActive && "border-premium-accent bg-premium-accent/30 shadow-[0_0_30px_rgba(59,130,246,0.4)]"
               )}
             >
               <div className={cn("w-2 h-2 rounded-full", airdrop.status === 'active' || isActive ? "bg-premium-accent shadow-[0_0_8px_#3b82f6]" : "bg-white/10")} />
-              {airdrop.status}
+              {isActive ? 'TARGET LOCKED' : airdrop.status}
             </div>
             
             <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all duration-700 translate-x-6 group-hover:translate-x-0">
@@ -945,7 +954,7 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
                 </div>
                 <h3 className={cn(
                   "text-4xl font-display font-black text-white uppercase tracking-tighter group-hover:text-premium-accent transition-all duration-500 leading-none",
-                  isActive && "text-white drop-shadow-[0_0_20px_rgba(59,130,246,0.5)] scale-[1.05] translate-x-1"
+                  isActive && "text-premium-accent drop-shadow-[0_0_30px_rgba(59,130,246,0.8)] scale-[1.1] translate-x-3"
                 )}>
                   {airdrop.name}
                 </h3>
