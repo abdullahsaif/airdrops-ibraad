@@ -34,61 +34,98 @@ export function Dashboard() {
   const [lastActiveId, setLastActiveId] = useState<string | null>(null);
   const [isChainMode, setIsChainMode] = useState(false);
   const sessionWinRef = useRef<Window | null>(null);
-  const [isOpening, setIsOpening] = useState(false);
+  const isOpeningRef = useRef(false);
+  const [isOpening, setIsOpeningState] = useState(false);
+  const launchLockRef = useRef(false); // Global lock to prevent any concurrent launches
+  const lastLaunchTimeRef = useRef(0);
+  const lastLaunchIdRef = useRef<string | null>(null);
+  
+  const setIsOpening = (val: boolean) => {
+    isOpeningRef.current = val;
+    setIsOpeningState(val);
+  };
   const [popupBlocked, setPopupBlocked] = useState(false);
 
   const [showHelpModal, setShowHelpModal] = useState(false);
 
-  const handleSetActive = (id: string, autoOpen = false, win: Window | null = null) => {
-    // Avoid double-setting if already active and we just want to update the ref
-    if (win && sessionWinRef.current === win) return;
-    
+  const handleSetActive = async (id: string, autoOpen = false, win: Window | null = null) => {
+    const now = Date.now();
+
+    // Prevent multiple launches simultaneously
+    if (launchLockRef.current && autoOpen) {
+      console.log("Mission critical: Launch already in progress, blocking concurrent deployment.");
+      return;
+    }
+
+    if (autoOpen) {
+      if (isOpeningRef.current) return;
+      
+      // Minimum gap between ANY automated launch (1.5s)
+      if (now - lastLaunchTimeRef.current < 1500) return;
+
+      // Duplicate guard (3s for same ID)
+      if (lastLaunchIdRef.current === id && now - lastLaunchTimeRef.current < 3000) return;
+    }
+
     setLastActiveId(id);
     
-    // Auto-scroll the selected card into view
-    setTimeout(() => {
+    // Smooth scroll with better logic
+    requestAnimationFrame(() => {
       const element = document.getElementById(`airdrop-card-${id}`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
-    }, 50);
+    });
     
     if (win) {
       sessionWinRef.current = win;
     }
     
     if (autoOpen) {
-      // Prevent multiple concurrent launch attempts
-      if (isOpening) return;
-      
+      launchLockRef.current = true;
       const airdrop = airdrops.find(a => a.id === id);
-      if (airdrop) {
-        if (airdrop.url) {
-          // Check if we already have an open window for THIS target to prevent double opening
-          if (sessionWinRef.current && !sessionWinRef.current.closed && lastActiveId === id) {
-             console.log("Mission already active in specialized uplink");
-             return;
-          }
+      
+      if (airdrop && airdrop.url) {
+        // Final sanity check on window state
+        if (sessionWinRef.current && !sessionWinRef.current.closed && lastLaunchIdRef.current === id) {
+           launchLockRef.current = false;
+           return;
+        }
 
-          setIsOpening(true);
-          setPopupBlocked(false);
+        setIsOpening(true);
+        lastLaunchTimeRef.current = now;
+        lastLaunchIdRef.current = id;
+        setPopupBlocked(false);
+        setNextReady(false);
+        
+        try {
           const newWin = window.open(airdrop.url, '_blank');
           
           if (newWin) {
             sessionWinRef.current = newWin;
-            setNextReady(false);
-            // Small delay to let browser register the window
-            setTimeout(() => setIsOpening(false), 800);
+            // Lock for 2s to allow the OS/Browser to handle the new tab
+            setTimeout(() => {
+              setIsOpening(false);
+              launchLockRef.current = false;
+            }, 2000);
           } else {
-            console.log("Auto-open blocked or failed");
+            console.log("Transmission intercepted by popup-guard");
             setNextReady(true);
             setIsOpening(false);
             setPopupBlocked(true);
+            launchLockRef.current = false;
           }
-        } else {
-          navigate(`/airdrop/${airdrop.id}`);
+        } catch (e) {
+          console.error("Launch failure:", e);
           setIsOpening(false);
+          launchLockRef.current = false;
         }
+      } else if (airdrop) {
+        navigate(`/airdrop/${airdrop.id}`);
+        setIsOpening(false);
+        launchLockRef.current = false;
+      } else {
+        launchLockRef.current = false;
       }
     }
   };
@@ -187,6 +224,8 @@ export function Dashboard() {
 
       if (e.key === 'Enter' && lastActiveId) {
         e.preventDefault();
+        if (isOpeningRef.current) return; // Guard against multiple enter presses
+        
         if (nextReady) {
           const currentIndex = airdrops.findIndex(a => a.id === lastActiveId);
           if (currentIndex !== -1 && currentIndex < airdrops.length - 1) {
@@ -199,6 +238,8 @@ export function Dashboard() {
 
       if (e.key === ' ' && lastActiveId && nextReady) {
         e.preventDefault();
+        if (isOpeningRef.current) return;
+        
         const currentIndex = airdrops.findIndex(a => a.id === lastActiveId);
         if (currentIndex !== -1 && currentIndex < airdrops.length - 1) {
           handleSetActive(airdrops[currentIndex + 1].id, true);
@@ -210,40 +251,47 @@ export function Dashboard() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isChainMode, lastActiveId, airdrops, isOpening]);
 
-  // Monitor window for Chain Mode
+  // Stable Monitor for Chain Mode
+  const airdropsRef = useRef(airdrops);
+  const lastActiveIdRef = useRef(lastActiveId);
+  const isChainModeRef = useRef(isChainMode);
+
   useEffect(() => {
-    if (!isChainMode) {
-      setNextReady(false);
-      return;
-    }
+    airdropsRef.current = airdrops;
+    lastActiveIdRef.current = lastActiveId;
+    isChainModeRef.current = isChainMode;
+  }, [airdrops, lastActiveId, isChainMode]);
 
-    // If no active ID, set to first
-    if (!lastActiveId && airdrops.length > 0) {
-      setLastActiveId(airdrops[0].id);
-    }
-    
+  useEffect(() => {
     const interval = setInterval(() => {
-      // Only proceed if we aren't currently in the middle of opening a window
-      if (isOpening) return;
+      // Exit if not in chain mode or window is still opening
+      if (!isChainModeRef.current || isOpeningRef.current || launchLockRef.current) return;
 
+      // If a window was open and is now closed
       if (sessionWinRef.current && sessionWinRef.current.closed) {
+        console.log("Bridge protocol: Sector neutralized, jumping to next coordinate.");
         sessionWinRef.current = null;
         
-        // Find next index
-        const currentIndex = airdrops.findIndex(a => a.id === lastActiveId);
-        if (currentIndex !== -1 && currentIndex < airdrops.length - 1) {
-          const nextAirdrop = airdrops[currentIndex + 1];
-          // Try to Auto-Open directly
-          handleSetActive(nextAirdrop.id, true);
+        const currentAirdrops = airdropsRef.current;
+        const currentActiveId = lastActiveIdRef.current;
+        const currentIndex = currentAirdrops.findIndex(a => a.id === currentActiveId);
+
+        if (currentIndex !== -1 && currentIndex < currentAirdrops.length - 1) {
+          const nextAirdrop = currentAirdrops[currentIndex + 1];
+          const now = Date.now();
+          // Ensure we don't rapid fire from interval glitch
+          if (now - lastLaunchTimeRef.current > 2000) {
+            handleSetActive(nextAirdrop.id, true);
+          }
         } else {
+          console.log("Strategic objectives finalized.");
           setIsChainMode(false);
-          setNextReady(false);
         }
       }
-    }, 500);
+    }, 1000); // 1s interval is more than enough and more stable
     
     return () => clearInterval(interval);
-  }, [isChainMode, lastActiveId, airdrops, isOpening]);
+  }, []); // Run once, use refs for dynamic state
 
   useEffect(() => {
     if (!user) return;
@@ -382,15 +430,23 @@ const stats = {
   return (
     <div className="space-y-12">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-premium-border pb-10">
-        <div className="space-y-4 flex-1">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-premium-accent text-[10px] font-black uppercase tracking-[0.3em] italic">
-              <div className="w-1.5 h-1.5 bg-premium-accent rounded-full animate-pulse" />
-              Operational Hub
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 pb-10">
+        <div className="space-y-6 flex-1">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="px-2.5 py-1 rounded-md bg-premium-accent/10 border border-premium-accent/20">
+                <div className="flex items-center gap-2 text-premium-accent text-[10px] font-bold uppercase tracking-[0.2em]">
+                  <Activity className="w-3 h-3 animate-pulse" />
+                  System Online
+                </div>
+              </div>
+              <div className="h-px flex-1 bg-white/[0.05]" />
             </div>
-            <h1 className="text-5xl font-display font-extrabold uppercase tracking-tighter text-white">
-              {currentFolder ? currentFolder.name : 'Command Center'}
+            <h1 className="text-6xl md:text-7xl font-display font-extrabold uppercase tracking-tight text-white leading-none">
+              <span className="text-gradient">
+                {currentFolder ? currentFolder.name : 'Vanguard'}
+              </span>
+              <span className="text-premium-accent block md:inline md:ml-4 text-4xl md:text-5xl opacity-50">.OS</span>
             </h1>
           </div>
 
@@ -401,13 +457,13 @@ const stats = {
               placeholder="QUICK SEARCH ( / )"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-premium-border/50 p-3 pl-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white placeholder:text-premium-muted/50 focus:outline-none focus:border-premium-accent focus:bg-white/10 transition-all shadow-inner"
+              className="w-full bg-white/[0.02] border border-white/[0.08] p-4 pl-12 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-white placeholder:text-premium-muted/30 focus:outline-none focus:border-premium-accent/50 focus:bg-white/[0.05] transition-all"
             />
-            <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-premium-muted group-focus-within:text-premium-accent transition-colors opacity-50" />
+            <Activity className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-premium-muted group-focus-within:text-premium-accent transition-colors opacity-30" />
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-premium-muted hover:text-white uppercase tracking-tighter"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-premium-muted hover:text-white uppercase tracking-widest"
               >
                 Clear
               </button>
@@ -415,76 +471,81 @@ const stats = {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-4">
           <button
             onClick={toggleChainMode}
             className={cn(
-              "px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 flex items-center gap-2 border shadow-lg",
+              "premium-button px-7 py-4",
               isChainMode 
-                ? "bg-premium-accent text-white border-premium-accent shadow-premium-accent/20" 
-                : "bg-white/5 text-premium-muted border-premium-border hover:border-premium-accent/40"
+                ? "bg-premium-accent text-white shadow-[0_0_30px_rgba(59,130,246,0.3)]" 
+                : "bg-white/[0.03] text-premium-muted border border-white/[0.08] hover:border-premium-accent/40 hover:text-white"
             )}
           >
-            <Activity className={cn("w-3.5 h-3.5", isChainMode && "animate-spin-slow")} />
-            {isChainMode ? 'Sequence Mode: Active' : 'Start Sequence'}
+            <div className="flex items-center gap-3">
+              <Shield className={cn("w-4 h-4", isChainMode && "animate-pulse")} />
+              {isChainMode ? 'Sequence Mode: Active' : 'Initiate Chain'}
+            </div>
           </button>
           
           <button 
             onClick={() => setShowNewModal(true)}
-            className="bg-premium-accent text-white px-8 py-4 rounded-xl flex items-center justify-center gap-3 hover:bg-blue-500 transition-all font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-premium-accent/20 active:scale-95"
+            className="premium-button-primary px-10 py-5 text-xs"
           >
-            <Plus className="w-4 h-4" />
-            Deploy Mission
+            <div className="flex items-center gap-3">
+              <Plus className="w-5 h-5" />
+              Analyze New Protocol
+            </div>
           </button>
         </div>
       </div>
 
       {isChainMode && (
         <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
           className={cn(
-            "border rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between backdrop-blur-md gap-4 relative overflow-hidden transition-all duration-500",
-            nextReady 
-              ? "bg-premium-accent/20 border-premium-accent shadow-[0_0_50px_rgba(37,99,235,0.3)]" 
-              : "bg-premium-accent/10 border-premium-accent/30"
+            "premium-glass rounded-3xl p-8 flex flex-col xl:flex-row items-center justify-between gap-8 relative overflow-hidden transition-all duration-700",
+            nextReady && "ring-2 ring-premium-accent/50 shadow-[0_0_80px_rgba(59,130,246,0.15)]"
           )}
         >
-          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-premium-accent/50 to-transparent" />
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-premium-accent/40 to-transparent" />
+          <div className="absolute -right-20 -top-20 w-64 h-64 bg-premium-accent/5 blur-[100px] rounded-full" />
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-8 relative z-10">
             <div className={cn(
-              "w-12 h-12 rounded-xl flex items-center justify-center shadow-inner transition-all duration-500",
-              nextReady ? "bg-premium-accent text-white" : "bg-premium-accent/20 text-premium-accent"
+              "w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-700 shadow-2xl",
+              nextReady ? "bg-premium-accent text-white" : "bg-white/[0.03] border border-white/[0.05] text-premium-accent"
             )}>
-              <Activity className={cn("w-6 h-6", (isChainMode || nextReady) && "animate-pulse")} />
+              <Activity className={cn("w-10 h-10", (isChainMode || nextReady) && "animate-pulse")} />
             </div>
-            <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-premium-accent mb-1 flex items-center gap-2">
-                {nextReady ? (popupBlocked ? 'Pop-up Blocked - Action Required' : 'Mission Complete - Next Optimized') : 'Mission Chain Active'}
-                <span className="flex gap-1">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="w-1 h-1 bg-premium-accent rounded-full animate-bounce" style={{ animationDelay: `${i * 0.2}s` }} />
-                  ))}
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="text-[12px] font-bold uppercase tracking-[0.3em] text-premium-accent">
+                  {nextReady ? (popupBlocked ? 'ACTION REQUIRED' : 'NEURAL READY') : 'SEQUENCER ACTIVE'}
                 </span>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="w-1.5 h-1.5 bg-premium-accent rounded-full animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
+                  ))}
+                </div>
               </div>
-              <div className="text-xs text-white/70 font-medium">
+              <p className="text-lg font-medium text-white max-w-xl leading-relaxed">
                 {nextReady 
                   ? (popupBlocked 
-                      ? "The browser blocked the neural link. Click 'Launch Next' or press ENTER to override." 
-                      : "Previous target neutralized. Next sector is primed for deployment.")
-                  : "System is tracking your session. Close your current tab (Ctrl+W) to unlock the next sector."}
-              </div>
+                      ? "Neural link intercepted by browser security. Manual override required for deployment." 
+                      : "Mission successfully executed. Next sector is ready for initialization.")
+                  : "Scanning session patterns. Close the current uplink to automatically bridge to the next coordinate."}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 bg-black/40 px-6 py-3 rounded-xl border border-white/5 min-w-[280px]">
+          <div className="flex items-center gap-6 bg-white/[0.03] p-5 rounded-2xl border border-white/[0.05] min-w-[360px] relative z-10 group">
             <div className="flex-1">
-              <div className="text-[9px] font-mono text-premium-muted uppercase mb-0.5">Target Sector</div>
-              <div className="text-[11px] font-bold text-white uppercase tracking-wider truncate max-w-[150px]">
+              <div className="text-[10px] font-bold text-premium-muted uppercase mb-1 tracking-widest opacity-50">Target Uplink</div>
+              <div className="text-lg font-bold text-white uppercase tracking-tight truncate max-w-[200px]">
                 {nextReady 
                   ? airdrops[airdrops.findIndex(a => a.id === lastActiveId) + 1]?.name 
-                  : airdrops.find(a => a.id === lastActiveId)?.name || 'Initializing...'}
+                  : airdrops.find(a => a.id === lastActiveId)?.name || 'Syncing...'}
               </div>
             </div>
             
@@ -497,13 +558,13 @@ const stats = {
                     handleSetActive(airdrops[nextIndex].id, true);
                   }
                 }}
-                className="bg-premium-accent text-white px-6 py-2 rounded-lg font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] animate-bounce"
+                className="premium-button-primary px-8 py-4 animate-shimmer"
               >
                 Launch Next
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <div className="w-px h-8 bg-white/10" />
+              <div className="flex items-center gap-4">
+                <div className="w-px h-10 bg-white/[0.05]" />
                 <button 
                   onClick={() => {
                     const nextIndex = airdrops.findIndex(a => a.id === lastActiveId) + 1;
@@ -511,10 +572,10 @@ const stats = {
                       handleSetActive(airdrops[nextIndex].id, true);
                     }
                   }}
-                  className="p-2 hover:bg-premium-accent/20 rounded-lg transition-colors text-premium-accent"
-                  title="Skip to Next"
+                  className="w-12 h-12 flex items-center justify-center bg-white/[0.03] hover:bg-premium-accent hover:text-white rounded-xl transition-all text-premium-accent border border-white/[0.05]"
+                  title="Forward to Next Sector"
                 >
-                  <ChevronRight className="w-5 h-5" />
+                  <ChevronRight className="w-6 h-6" />
                 </button>
               </div>
             )}
@@ -523,26 +584,27 @@ const stats = {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {[
-          { label: 'Active Missions', value: stats.active, icon: Activity, color: 'text-emerald-400', bg: 'bg-emerald-400/5' },
-          { label: 'On Standby', value: stats.upcoming, icon: Clock, color: 'text-amber-400', bg: 'bg-amber-400/5' },
-          { label: 'Archived', value: stats.ended, icon: CheckCircle2, color: 'text-premium-muted', bg: 'bg-white/5' },
+          { label: 'Active Protocols', value: stats.active, icon: Shield, color: 'text-blue-400', bg: 'bg-blue-400/5' },
+          { label: 'Pending Bridge', value: stats.upcoming, icon: Clock, color: 'text-zinc-400', bg: 'bg-white/5' },
+          { label: 'Neutralized', value: stats.ended, icon: CheckCircle2, color: 'text-premium-muted', bg: 'bg-white/5' },
         ].map((stat, i) => (
           <motion.div 
             key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="premium-gradient-card border border-premium-border p-8 rounded-2xl group hover:border-premium-accent transition-all duration-500"
+            transition={{ delay: i * 0.1, duration: 0.8 }}
+            className="premium-gradient-card p-10 rounded-[32px] group relative overflow-hidden"
           >
-            <div className="flex items-center justify-between mb-8">
-              <div className={cn("p-4 rounded-xl", stat.bg)}>
-                <stat.icon className={cn("w-6 h-6", stat.color)} />
+            <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/[0.01] rounded-full group-hover:scale-150 transition-transform duration-700" />
+            <div className="flex items-center justify-between mb-10 relative z-10">
+              <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500", stat.bg)}>
+                <stat.icon className={cn("w-7 h-7", stat.color)} />
               </div>
-              <span className="text-4xl font-display font-extrabold text-white tracking-tighter">{stat.value}</span>
+              <span className="text-5xl font-display font-black text-white tracking-tighter tabular-nums text-gradient">{stat.value}</span>
             </div>
-            <p className="text-[10px] uppercase font-black tracking-[0.2em] text-premium-muted group-hover:text-white transition-colors">{stat.label}</p>
+            <p className="text-[11px] uppercase font-bold tracking-[0.3em] text-premium-muted group-hover:text-premium-accent transition-colors relative z-10">{stat.label}</p>
           </motion.div>
         ))}
       </div>
@@ -693,19 +755,30 @@ const stats = {
 
       {/* Shortcuts Help Modal */}
       {showHelpModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowHelpModal(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-premium-bg/90 backdrop-blur-2xl" onClick={() => setShowHelpModal(false)}>
           <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-premium-card border border-premium-border p-8 max-w-md w-full rounded-2xl shadow-2xl space-y-6"
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            className="premium-glass p-10 max-w-md w-full rounded-[40px] shadow-2xl space-y-10 border border-white/[0.08]"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-black uppercase tracking-tighter text-white">System Hotkeys</h3>
-              <button onClick={() => setShowHelpModal(false)} className="text-premium-muted hover:text-white">×</button>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-premium-accent text-[10px] font-black uppercase tracking-[0.2em]">
+                  <div className="w-1 h-1 bg-premium-accent rounded-full" />
+                  Neural Interface
+                </div>
+                <h3 className="text-2xl font-display font-black uppercase tracking-tight text-white leading-none">System Hotkeys</h3>
+              </div>
+              <button 
+                onClick={() => setShowHelpModal(false)} 
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/[0.03] text-premium-muted hover:text-white hover:bg-white/[0.1] transition-all text-xl font-light"
+              >
+                ×
+              </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {[
                 { keys: ['S'], label: 'Toggle Sequence Mode' },
                 { keys: ['N'], label: 'New Mission' },
@@ -717,25 +790,28 @@ const stats = {
                 { keys: ['?'], label: 'Toggle this help' },
                 { keys: ['Esc'], label: 'Close everything' },
               ].map(item => (
-                <div key={item.label} className="flex items-center justify-between border-b border-white/5 pb-2 text-sm">
-                  <span className="text-premium-muted uppercase text-[10px] font-bold">{item.label}</span>
-                  <div className="flex gap-1">
+                <div key={item.label} className="flex items-center justify-between border-b border-white/[0.03] pb-3 text-sm group">
+                  <span className="text-premium-muted uppercase text-[10px] font-bold tracking-widest group-hover:text-white transition-colors">{item.label}</span>
+                  <div className="flex gap-1.5">
                     {item.keys.map(k => (
-                      <kbd key={k} className="px-2 py-0.5 bg-white/10 rounded border border-white/10 text-[10px] font-black text-premium-accent">{k}</kbd>
+                      <kbd key={k} className="min-w-[24px] h-6 flex items-center justify-center px-2 bg-white/[0.03] rounded-md border border-white/[0.1] text-[9px] font-black text-premium-accent shadow-sm">{k}</kbd>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="pt-4 border-t border-white/10 space-y-2">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-white">System Deployment</h4>
-              <p className="text-[9px] text-premium-muted leading-relaxed uppercase">
-                Use the <span className="text-premium-accent font-bold">SHARE</span> button (top right) for your permanent link. For a small URL, use bit.ly or tinyurl.com with your shared link.
+            <div className="pt-6 border-t border-white/[0.05] space-y-4">
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white italic">
+                <div className="w-1 h-1 bg-white rotate-45" />
+                Strategic Deployment
+              </div>
+              <p className="text-[10px] text-premium-muted leading-relaxed uppercase opacity-60">
+                Utilize the <span className="text-premium-accent font-bold">SHARE</span> function for persistent connectivity. Neural links are optimized for direct transmission.
               </p>
             </div>
 
-            <p className="text-[9px] text-center text-premium-muted uppercase tracking-widest font-black">Speed is the only strategy.</p>
+            <p className="text-[10px] text-center text-premium-accent uppercase tracking-[0.3em] font-black italic opacity-40 animate-pulse">Execution is everything.</p>
           </motion.div>
         </div>
       )}
@@ -762,17 +838,27 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
     return () => unsubscribe();
   }, [user, airdrop.id, isExpanded]);
 
+  const lastClickTimeRef = useRef(0);
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
+      initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ y: -4 }}
-      transition={{ delay: index * 0.05 }}
+      whileHover={{ y: -12, scale: 1.02 }}
+      transition={{ 
+        delay: index * 0.05, 
+        duration: 0.7,
+        ease: [0.23, 1, 0.32, 1]
+      }}
       className="group relative h-full pointer-events-none"
     >
       <div 
         onClick={(e) => {
           e.stopPropagation();
+          const now = Date.now();
+          if (now - lastClickTimeRef.current < 1000) return;
+          lastClickTimeRef.current = now;
+
           if (airdrop.url) {
             const win = window.open(airdrop.url, '_blank');
             onOpen?.(win);
@@ -782,126 +868,154 @@ function AirdropCard({ airdrop, index, isActive, onOpen, onEdit, onDelete }: { a
           }
         }}
         className={cn(
-          "premium-gradient-card border rounded-2xl group transition-all duration-500 shadow-lg overflow-hidden h-full flex flex-col cursor-pointer pointer-events-auto relative",
+          "premium-gradient-card rounded-[40px] group transition-all duration-700 overflow-hidden h-full flex flex-col cursor-pointer pointer-events-auto relative border border-white/[0.04]",
           isActive 
-            ? "border-premium-accent bg-premium-accent/[0.12] shadow-[0_0_60px_rgba(37,99,235,0.25),inset_0_1px_1px_rgba(255,255,255,0.1),inset_0_0_40px_rgba(37,99,235,0.1)] ring-1 ring-premium-accent" 
-            : "border-premium-border hover:border-premium-accent/40"
+            ? "border-premium-accent/60 shadow-[0_0_50px_rgba(59,130,246,0.15)] bg-premium-accent/[0.05]" 
+            : "hover:border-white/[0.12] hover:bg-white/[0.02]"
         )}
       >
+        {/* Futuristic Grid Accent */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none overflow-hidden">
+          <div className="absolute inset-0 border-[0.5px] border-white/20" style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        </div>
+
         {isActive && (
-          <div className="absolute top-0 right-0 p-2 z-[2]">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-bl-xl bg-premium-accent border-l border-b border-white/20 shadow-lg shadow-premium-accent/40">
-              <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
-              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white">Active Sector</span>
+          <div className="absolute top-0 right-0 p-6 z-10">
+            <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-premium-accent/10 border border-premium-accent/30 backdrop-blur-2xl shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+              <div className="w-2 h-2 bg-premium-accent rounded-full animate-pulse shadow-[0_0_8px_#3b82f6]" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-premium-accent">Neural Active</span>
             </div>
           </div>
         )}
-        <div className="p-6 space-y-5 flex-1">
-          {/* Top Bar */}
-          <div className="flex items-start justify-between">
+        
+        <div className="p-10 space-y-10 flex-1 relative z-10">
+          {/* Top Bar with Badge and Actions */}
+          <div className="flex items-center justify-between">
             <div 
               className={cn(
-                "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-[0.2em] border flex items-center gap-1.5",
-                airdrop.status === 'active' ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5" : "border-premium-border text-premium-muted bg-white/5"
+                "px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-[0.3em] border flex items-center gap-2.5 transition-all duration-500",
+                airdrop.status === 'active' 
+                  ? "border-premium-accent/30 text-premium-accent bg-premium-accent/5 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                  : "border-white/10 text-premium-muted bg-white/5"
               )}
             >
-              <GripVertical className="w-2.5 h-2.5 opacity-40 shrink-0" />
+              <div className={cn("w-1.5 h-1.5 rounded-full", airdrop.status === 'active' ? "bg-premium-accent animate-pulse" : "bg-white/20")} />
               {airdrop.status}
             </div>
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            
+            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-4 group-hover:translate-x-0">
               <button 
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(); }}
-                className="p-1.5 text-premium-muted hover:text-premium-accent transition-colors relative z-10"
+                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/[0.03] text-premium-muted hover:text-white hover:bg-white/[0.1] hover:border-premium-accent/40 border border-white/[0.05] transition-all relative z-20"
               >
-                <Pencil className="w-3.5 h-3.5" />
+                <Pencil className="w-4 h-4" />
               </button>
               <button 
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
-                className="p-1.5 text-premium-muted hover:text-red-400 transition-colors relative z-10"
+                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/[0.03] text-premium-muted hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/40 border border-white/[0.05] transition-all relative z-20"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Title & Icon Area */}
-          <div className="flex items-center gap-4 group/handle">
-            <div 
-              className={cn(
-                "w-12 h-12 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center overflow-hidden flex-shrink-0 transition-all",
-                airdrop.url ? "group-hover:border-premium-accent/50 group-hover:bg-premium-accent/5" : ""
-              )}
-            >
-              {airdrop.url ? (
-                <img 
-                  src={getFaviconUrl(airdrop.url) || ''} 
-                  alt="" 
-                  className="w-7 h-7 object-contain"
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                />
-              ) : (
-                <Shield className="w-6 h-6 text-premium-muted opacity-20" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="block text-xl font-display font-black text-white uppercase tracking-tight group-hover:text-premium-accent transition-colors truncate">
-                  {airdrop.name}
-                </span>
+          {/* Title Area */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-7">
+              <div className="w-20 h-20 rounded-[28px] bg-white/[0.02] border border-white/[0.05] flex items-center justify-center overflow-hidden transition-all duration-700 group-hover:border-premium-accent/40 group-hover:bg-premium-accent/5 shadow-2xl relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                {airdrop.url ? (
+                  <img 
+                    src={getFaviconUrl(airdrop.url) || ''} 
+                    alt="" 
+                    className="w-10 h-10 object-contain grayscale opacity-30 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-700 relative z-10"
+                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                  />
+                ) : (
+                  <Shield className="w-10 h-10 text-premium-muted opacity-10" />
+                )}
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Clock className="w-3 h-3 text-premium-muted" />
-                <span className="text-[9px] text-premium-muted uppercase font-bold tracking-widest">{getRelativeDays(airdrop.createdAt)}</span>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2 text-premium-accent text-[9px] font-black uppercase tracking-[0.4em]">
+                  <div className="w-1 h-1 bg-premium-accent rotate-45" />
+                  Cluster {index + 1}
+                </div>
+                <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter truncate group-hover:text-premium-accent transition-all duration-300 transform group-hover:translate-x-1">
+                  {airdrop.name}
+                </h3>
+                <div className="flex items-center gap-3 mt-1.5 opacity-30 group-hover:opacity-60 transition-opacity">
+                  <Clock className="w-3 h-3 text-premium-muted" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-premium-muted">{getRelativeDays(airdrop.createdAt)} Deployment</span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Mini Stats and Link Shortcut */}
-          <div className="grid grid-cols-2 gap-4 py-2 border-y border-white/5 mx-[-1.5rem] px-6">
-            <div className="space-y-0.5">
-              <p className="text-[8px] font-black text-premium-muted uppercase tracking-widest">Modules</p>
-              <div className="flex items-center gap-1.5 text-white">
-                <Activity className="w-3 h-3 text-premium-accent" />
-                <span className="text-[10px] font-bold">{tasks.length || 0} Ready</span>
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 gap-6 pt-10 border-t border-white/[0.04] relative">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-px bg-white/[0.1]" />
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-premium-muted uppercase tracking-[0.3em] opacity-30">Architecture</span>
+              <div className="flex items-center gap-2.5 text-white/90">
+                <div className="w-6 h-6 rounded-lg bg-premium-accent/10 border border-premium-accent/20 flex items-center justify-center">
+                  <Shield className="w-3.5 h-3.5 text-premium-accent" />
+                </div>
+                <span className="text-xs font-black tracking-tight">{tasks.length || 0} MODULES</span>
               </div>
             </div>
-            <div className="space-y-0.5 text-right">
-              <p className="text-[8px] font-black text-premium-muted uppercase tracking-widest">Difficulty</p>
-              <span className={cn(
-                "text-[10px] font-bold uppercase tracking-widest",
-                airdrop.difficulty === 'easy' ? "text-emerald-400" :
-                airdrop.difficulty === 'hard' ? "text-red-400" : "text-amber-400"
-              )}>
-                {airdrop.difficulty || 'Med'}
-              </span>
+            <div className="space-y-2 text-right">
+              <span className="text-[10px] font-black text-premium-muted uppercase tracking-[0.3em] opacity-30">Frequency</span>
+              <div className="flex items-center gap-2.5 justify-end">
+                <span className="text-xs font-black uppercase tracking-widest text-zinc-300">
+                  {airdrop.frequency?.toUpperCase() || 'STABLE'}
+                </span>
+                <div className="w-6 h-6 rounded-lg bg-white/[0.03] border border-white/[0.1] flex items-center justify-center">
+                  <Calendar className="w-3.5 h-3.5 text-premium-muted" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Action Bar */}
-        <div className="p-3 bg-white/2 border-t border-white/5 flex items-center gap-2">
-           {airdrop.url ? (
-             <div className="flex-1 bg-premium-accent text-white py-3 rounded-lg flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all shadow-lg shadow-premium-accent/10 hover:bg-blue-500 group/launch">
-               Launch Mission
-               <ExternalLink className="w-3 h-3 group-hover/launch:translate-x-0.5 group-hover/launch:-translate-y-0.5 transition-transform" />
-             </div>
-           ) : (
-             <div className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-lg flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all">
-               Manage Console
-               <ChevronRight className="w-3 h-3" />
-             </div>
-           )}
-           <Link 
-             to={`/airdrop/${airdrop.id}`}
-             title="Console Management"
-             onClick={(e) => {
-               e.stopPropagation();
-               onOpen?.(null);
-             }}
-             className="w-10 h-10 bg-white/5 border border-white/5 text-premium-muted hover:text-premium-accent hover:border-premium-accent/30 rounded-lg flex items-center justify-center transition-all relative z-10"
-           >
-             <Settings2 className="w-4 h-4" />
-           </Link>
+        {/* Dynamic Action Area */}
+        <div className="p-3 gap-3 flex relative z-10 border-t border-white/[0.04] bg-white/[0.01]">
+          <button 
+            className={cn(
+              "flex-1 premium-button text-[11px] font-black tracking-[0.3em] py-5 flex items-center justify-center gap-3 transition-all duration-700 rounded-[20px]",
+              airdrop.url ? "premium-button-primary shadow-[0_0_30px_rgba(59,130,246,0.15)]" : "premium-button-secondary"
+            )}
+            onClick={(e) => {
+              if (!airdrop.url) {
+                e.stopPropagation();
+                onOpen?.(null);
+                navigate(`/airdrop/${airdrop.id}`);
+              }
+            }}
+          >
+            {airdrop.url ? (
+              <>
+                INIT LINK
+                <MoveRight className="w-4 h-4 transition-transform group-hover:translate-x-2" />
+              </>
+            ) : (
+              <>
+                COMMAND
+                <GripVertical className="w-4 h-4 opacity-50" />
+              </>
+            )}
+          </button>
+          
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen?.(null);
+              navigate(`/airdrop/${airdrop.id}`);
+            }}
+            className="w-16 h-16 flex items-center justify-center rounded-[20px] bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.08] hover:border-premium-accent/40 text-premium-muted hover:text-white transition-all group/opt shadow-inner"
+            title="System Settings"
+          >
+            <Settings2 className="w-5 h-5 group-hover/opt:rotate-90 transition-transform duration-700" />
+          </button>
         </div>
       </div>
     </motion.div>
@@ -981,36 +1095,43 @@ function AirdropModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#050505]/95 backdrop-blur-xl overflow-y-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-premium-bg/90 backdrop-blur-3xl overflow-y-auto">
       <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="bg-premium-card border border-premium-border p-10 max-w-2xl w-full relative rounded-2xl shadow-2xl my-auto"
+        initial={{ scale: 0.95, opacity: 0, y: 40 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        className="premium-glass p-12 max-w-2xl w-full relative rounded-[40px] shadow-2xl my-auto border border-white/[0.08]"
       >
-        <button onClick={onClose} className="absolute top-6 right-6 text-2xl font-bold text-premium-muted hover:text-white transition-colors">×</button>
-        <h3 className="text-3xl font-display font-extrabold uppercase tracking-tighter mb-8 text-white">
-          {airdrop ? 'Refine Protocol' : 'Initialize Mission'}
-        </h3>
+        <button onClick={onClose} className="absolute top-8 right-8 w-12 h-12 flex items-center justify-center rounded-full bg-white/[0.03] text-premium-muted hover:text-white hover:bg-white/[0.1] transition-all text-2xl font-light">×</button>
         
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Airdrop Identifier</label>
+        <div className="space-y-2 mb-12">
+          <div className="flex items-center gap-2 text-premium-accent text-[11px] font-black uppercase tracking-[0.3em]">
+            <div className="w-1.5 h-1.5 bg-premium-accent rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+            Core Logic
+          </div>
+          <h3 className="text-4xl font-display font-black uppercase tracking-tight text-white leading-none">
+            {airdrop ? 'Refine Logic' : 'Establish Link'}
+          </h3>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Protocol Handle</label>
               <input 
                 required
                 autoFocus
-                className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent transition-all text-sm text-white placeholder:text-white/10"
-                placeholder="e.g. MONAD"
+                className="w-full bg-white/[0.03] border border-white/[0.08] p-5 rounded-2xl focus:outline-none focus:border-premium-accent/50 focus:bg-white/[0.05] transition-all text-sm text-white placeholder:text-white/10 shadow-inner"
+                placeholder="MISSION DESCRIPTOR"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Target Uplink (URL)</label>
+            <div className="space-y-3">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Neural Uplink (URL)</label>
               <input 
                 required
-                className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent transition-all text-sm text-white placeholder:text-white/10"
-                placeholder="https://..."
+                className="w-full bg-white/[0.03] border border-white/[0.08] p-5 rounded-2xl focus:outline-none focus:border-premium-accent/50 focus:bg-white/[0.05] transition-all text-sm text-white placeholder:text-white/10 shadow-inner"
+                placeholder="HTTPS://CRYPTO-ASSET.NETWORK"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
@@ -1019,59 +1140,73 @@ function AirdropModal({
 
           <div className="space-y-4">
              <div className="flex items-center justify-between">
-                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Neural Sector (Folder)</label>
-                <button 
-                  type="button"
-                  onClick={() => setIsCreatingFolder(!isCreatingFolder)}
-                  className="text-[9px] font-black uppercase text-premium-accent hover:underline"
-                >
-                  {isCreatingFolder ? "Cancel creation" : "New sector"}
-                </button>
+                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Sector Assignment</label>
+                {!isCreatingFolder && (
+                  <button 
+                    type="button"
+                    onClick={() => setIsCreatingFolder(true)}
+                    className="text-[10px] font-bold uppercase text-premium-accent hover:opacity-70 transition-opacity"
+                  >
+                    + Establish New Sector
+                  </button>
+                )}
              </div>
              {isCreatingFolder ? (
-               <div className="flex gap-2">
+               <div className="flex gap-3 animate-in slide-in-from-top-4">
                  <input 
                    autoFocus
-                   className="flex-1 bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none text-sm text-white"
-                   placeholder="New sector name..."
+                   className="flex-1 bg-white/[0.03] border border-white/[0.1] p-5 rounded-2xl focus:outline-none text-sm text-white"
+                   placeholder="DESIGNATE NEW SECTOR..."
                    value={newFolderName}
                    onChange={(e) => setNewFolderName(e.target.value)}
-                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleQuickFolder())}
+                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleQuickFolder())}
                  />
                  <button 
                    type="button"
                    onClick={handleQuickFolder}
-                   className="px-6 bg-premium-accent text-white rounded-xl font-bold uppercase text-[10px]"
+                   className="px-8 bg-premium-accent text-white rounded-2xl font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-premium-accent/20"
                  >
                    Establish
                  </button>
+                 <button 
+                   type="button"
+                   onClick={() => setIsCreatingFolder(false)}
+                   className="w-14 h-14 flex items-center justify-center rounded-2xl bg-white/[0.03] border border-white/[0.08] text-white"
+                 >
+                   ×
+                 </button>
                </div>
              ) : (
-                <select 
-                  className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent transition-all text-sm text-white appearance-none cursor-pointer"
-                  value={selectedFolderId}
-                  onChange={(e) => setSelectedFolderId(e.target.value)}
-                >
-                  <option value="" className="bg-premium-bg">Unclassified Sector</option>
-                  {folders.map(f => (
-                    <option key={f.id} value={f.id} className="bg-premium-bg">{f.name}</option>
-                  ))}
-                </select>
+                <div className="relative group">
+                  <select 
+                    className="w-full bg-white/[0.03] border border-white/[0.08] p-5 rounded-2xl focus:outline-none focus:border-premium-accent/50 transition-all text-sm text-white appearance-none cursor-pointer"
+                    value={selectedFolderId}
+                    onChange={(e) => setSelectedFolderId(e.target.value)}
+                  >
+                    <option value="" className="bg-premium-bg">GLOBAL SECTOR</option>
+                    {folders.map(f => (
+                      <option key={f.id} value={f.id} className="bg-premium-bg">CLUSTER: {f.name.toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-premium-muted pointer-events-none group-hover:text-premium-accent transition-colors rotate-90" />
+                </div>
              )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Sync Frequency</label>
-              <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-5">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Transmission Cycle</label>
+              <div className="flex flex-wrap gap-2">
                 {['daily', '3-day', 'weekly', 'one-time'].map((f) => (
                   <button
                     key={f}
                     type="button"
                     onClick={() => setFrequency(f)}
                     className={cn(
-                      "py-2.5 text-[9px] font-black uppercase tracking-widest border rounded-lg transition-all",
-                      frequency === f ? "bg-premium-accent text-white border-premium-accent shadow-lg shadow-premium-accent/20" : "border-premium-border text-premium-muted hover:border-premium-muted"
+                      "flex-1 min-w-[100px] py-4 text-[10px] font-bold uppercase tracking-[0.15em] border rounded-2xl transition-all",
+                      frequency === f 
+                        ? "bg-premium-accent text-white border-premium-accent shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+                        : "border-white/[0.08] bg-white/[0.02] text-premium-muted hover:border-white/[0.2] hover:text-white"
                     )}
                   >
                     {f}
@@ -1080,17 +1215,19 @@ function AirdropModal({
               </div>
             </div>
 
-            <div className="space-y-4">
-              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Inaugural Status</label>
-              <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-5">
+              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Protocol Phase</label>
+              <div className="flex gap-2">
                 {['active', 'upcoming', 'ended'].map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setStatus(s)}
                     className={cn(
-                      "py-3 text-[10px] font-black uppercase tracking-widest border rounded-lg transition-all",
-                      status === s ? "bg-premium-accent text-white border-premium-accent shadow-lg shadow-premium-accent/20" : "border-premium-border text-premium-muted hover:border-premium-muted"
+                      "flex-1 py-4 text-[10px] font-bold uppercase tracking-[0.15em] border rounded-2xl transition-all",
+                      status === s 
+                        ? "bg-premium-accent text-white border-premium-accent shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+                        : "border-white/[0.08] bg-white/[0.02] text-premium-muted hover:border-white/[0.2] hover:text-white"
                     )}
                   >
                     {s}
@@ -1100,33 +1237,14 @@ function AirdropModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Risk Assessment</label>
-              <div className="grid grid-cols-3 gap-2">
-                {['easy', 'medium', 'hard'].map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setDifficulty(d)}
-                    className={cn(
-                      "py-2.5 text-[9px] font-black uppercase tracking-widest border rounded-lg transition-all",
-                      difficulty === d ? "bg-premium-accent text-white border-premium-accent shadow-lg shadow-premium-accent/20" : "border-premium-border text-premium-muted hover:border-premium-muted"
-                    )}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="pt-8">
+            <button
+              type="submit"
+              className="w-full premium-button-primary py-6 text-sm tracking-[0.3em] rounded-[24px]"
+            >
+              {airdrop ? 'COMMIT LINK ENCRYPTION' : 'FINALIZE NEURAL BRIDGE'}
+            </button>
           </div>
-
-          <button 
-            type="submit"
-            className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] hover:bg-blue-500 shadow-xl hover:shadow-blue-500/20 transition-all active:scale-95"
-          >
-            {airdrop ? 'Update Protocol' : 'Deploy Mission'}
-          </button>
         </form>
       </motion.div>
     </div>

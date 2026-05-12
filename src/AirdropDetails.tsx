@@ -111,36 +111,39 @@ export function AirdropDetails() {
   })).sort((a, b) => (a.order || 0) - (b.order || 0));
 
   return (
-    <div className="space-y-12 pb-32">
+    <div className="space-y-16 pb-32">
        {/* Header */}
-       <div className="border-b border-premium-border pb-10 flex flex-col md:flex-row md:items-end justify-between gap-8">
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
+       <div className="border-b border-white/[0.05] pb-12 flex flex-col md:flex-row md:items-end justify-between gap-10">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
             <button 
               onClick={() => navigate('/')} 
-              className="text-premium-muted hover:text-white transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/[0.03] border border-white/[0.05] text-premium-muted hover:text-white hover:border-premium-accent/30 transition-all"
             >
               <ArrowRight className="w-4 h-4 rotate-180" />
             </button>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-premium-accent italic">Operations Cluster</h2>
+            <div className="flex items-center gap-2 text-premium-accent text-[11px] font-black uppercase tracking-[0.3em]">
+              <div className="w-1.5 h-1.5 bg-premium-accent rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+              Core Cluster
+            </div>
           </div>
-          <h1 className="text-5xl font-display font-extrabold uppercase tracking-tighter text-white">{airdrop.name}</h1>
+          <h1 className="text-6xl font-display font-black uppercase tracking-tight text-white leading-none">{airdrop.name}</h1>
         </div>
         <div className="flex flex-wrap gap-4">
           <button 
             onClick={() => setShowNewFolderModal(true)}
-            className="premium-glass bg-white/5 border-white/10 px-6 py-4 flex items-center justify-center gap-3 hover:bg-white/10 transition-all font-black uppercase text-[10px] tracking-widest text-white rounded-xl"
+            className="premium-glass bg-white/[0.03] border-white/[0.08] px-8 py-5 flex items-center justify-center gap-3 hover:bg-white/[0.06] transition-all font-black uppercase text-[11px] tracking-[0.2em] text-white rounded-[20px]"
           >
-            <Plus className="w-4 h-4" />
-            Add Group
+            <Plus className="w-4 h-4 text-premium-accent" />
+            Initialize Sector
           </button>
           <button 
              onClick={() => navigate(`/runner/${id}`)}
              disabled={tasks.length === 0}
-             className="bg-premium-accent text-white px-8 py-4 flex items-center justify-center gap-3 hover:bg-blue-500 transition-all font-black uppercase text-[10px] tracking-[0.2em] rounded-xl shadow-lg shadow-premium-accent/20 disabled:grayscale disabled:opacity-50"
+             className="premium-button-primary px-10 py-5 flex items-center justify-center gap-3 transition-all font-black uppercase text-[11px] tracking-[0.2em] rounded-[20px] disabled:grayscale disabled:opacity-50"
           >
             <Play className="w-4 h-4 fill-current" />
-            Launch Session
+            Engage Interface
           </button>
         </div>
       </div>
@@ -189,40 +192,43 @@ const FolderSection: React.FC<{ folder: AirdropFolder, onAddTask: () => void }> 
   const [isExpanded, setIsExpanded] = useState(true);
 
   const difficultyStyles: any = {
-    easy: 'border-emerald-500/20 text-emerald-400 bg-emerald-500/10',
-    medium: 'border-amber-500/20 text-amber-400 bg-amber-500/10',
-    hard: 'border-red-500/20 text-red-400 bg-red-500/10',
-    custom: 'border-premium-accent/20 text-premium-accent bg-premium-accent/10'
+    easy: 'border-blue-500/30 text-blue-400 bg-blue-500/5',
+    medium: 'border-amber-500/30 text-amber-400 bg-amber-500/5',
+    hard: 'border-red-500/30 text-red-400 bg-red-500/5',
+    custom: 'border-premium-accent/30 text-premium-accent bg-premium-accent/5'
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between group">
         <div className="flex items-center gap-6">
-          <div className="p-3 bg-white/5 rounded-xl group-hover:bg-premium-accent/10 transition-colors">
-            <Folder className="w-6 h-6 text-white" />
+          <div className="w-14 h-14 bg-white/[0.03] border border-white/[0.05] rounded-2xl flex items-center justify-center group-hover:border-premium-accent/40 group-hover:bg-premium-accent/5 transition-all duration-500">
+            <Folder className="w-6 h-6 text-premium-muted group-hover:text-premium-accent transition-colors" />
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-3">
-              <h3 className="text-2xl font-display font-extrabold uppercase tracking-tight text-white group-hover:text-premium-accent transition-colors">{folder.name}</h3>
-              <span className={cn("text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border", difficultyStyles[folder.difficulty])}>
+              <h3 className="text-3xl font-display font-black uppercase tracking-tight text-white group-hover:text-premium-accent transition-all duration-300">{folder.name}</h3>
+              <span className={cn("text-[9px] font-black uppercase tracking-[0.2em] px-2.5 py-1 rounded-full border", difficultyStyles[folder.difficulty])}>
                 {folder.difficulty}
               </span>
             </div>
-            <p className="text-[10px] font-bold text-premium-muted uppercase tracking-widest mt-1 italic">{folder.tasks.length} Operational Units</p>
+            <p className="text-[10px] font-black text-premium-muted uppercase tracking-[0.25em] mt-1.5 opacity-60 flex items-center gap-2">
+              <Terminal className="w-3 h-3" />
+              {folder.tasks.length} Operational Units Enabled
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-6">
           <button 
             onClick={onAddTask}
-            className="hidden md:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-premium-muted hover:text-white transition-colors"
+            className="hidden md:flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-premium-muted hover:text-premium-accent transition-all duration-300"
           >
-            <Plus className="w-3 h-3" />
-            New Unit
+            <Plus className="w-3.5 h-3.5" />
+            Deploy Unit
           </button>
           <button 
             onClick={() => setIsExpanded(!isExpanded)}
-            className="w-10 h-10 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:border-white/[0.1] hover:bg-white/[0.06] transition-all"
           >
             {isExpanded ? <ChevronUp className="w-4 h-4 text-white" /> : <ChevronDown className="w-4 h-4 text-white" />}
           </button>
@@ -232,22 +238,22 @@ const FolderSection: React.FC<{ folder: AirdropFolder, onAddTask: () => void }> 
       <AnimatePresence>
         {isExpanded && (
           <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-hidden"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 overflow-hidden"
           >
             {folder.tasks.map((task, i) => (
               <TaskCard key={task.id} task={task as AirdropTask} index={i} />
             ))}
             <button 
               onClick={onAddTask}
-              className="premium-glass bg-white/[0.01] border-dashed border-premium-border/50 p-8 rounded-2xl flex flex-col items-center justify-center gap-4 text-premium-muted hover:border-premium-accent hover:text-white hover:bg-premium-accent/5 transition-all group min-h-[200px]"
+              className="premium-glass bg-white/[0.01] border-dashed border-white/[0.1] p-10 rounded-[32px] flex flex-col items-center justify-center gap-6 text-premium-muted hover:border-premium-accent/40 hover:text-white hover:bg-premium-accent/[0.03] transition-all group min-h-[220px]"
             >
-              <div className="p-3 bg-white/5 rounded-full group-hover:bg-premium-accent transition-colors">
+              <div className="w-12 h-12 rounded-full border border-white/[0.1] flex items-center justify-center group-hover:bg-premium-accent group-hover:border-premium-accent transition-all duration-500">
                 <Plus className="w-6 h-6 group-hover:text-white" />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Add Assignment</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Deploy Unit</span>
             </button>
           </motion.div>
         )}
@@ -281,58 +287,64 @@ const TaskCard: React.FC<{ task: AirdropTask, index: number }> = ({ task, index 
 
   return (
     <motion.div 
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
+      transition={{ delay: index * 0.05, duration: 0.6 }}
       className={cn(
-        "premium-gradient-card border border-premium-border p-6 rounded-2xl flex flex-col justify-between min-h-[200px] group relative transition-all duration-500 hover:border-premium-accent shadow-xl",
-        complete && "opacity-40 grayscale"
+        "premium-gradient-card p-8 rounded-[32px] flex flex-col justify-between min-h-[240px] group relative transition-all duration-700 hover:border-white/[0.15] shadow-2xl border border-white/[0.05]",
+        complete && "opacity-30 grayscale saturate-0 scale-[0.98]"
       )}
     >
-      <div className="space-y-4">
-        <div className="flex justify-between items-start">
-           <div className="p-2 bg-white/5 rounded-lg">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+           <div className="w-10 h-10 bg-white/[0.03] border border-white/[0.05] rounded-xl flex items-center justify-center group-hover:border-premium-accent/30 transition-all duration-500">
               <Terminal className="w-4 h-4 text-premium-accent" />
            </div>
            <button 
              onClick={deleteSelf} 
-             className="p-2 text-premium-muted hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+             className="w-8 h-8 flex items-center justify-center rounded-full text-premium-muted hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100"
            >
               <Trash2 className="w-4 h-4" />
            </button>
         </div>
         
-        <div className="space-y-1">
-          <h4 className="font-display font-extrabold text-lg text-white uppercase tracking-tight leading-tight line-clamp-2">{task.name}</h4>
-          <p className="text-[10px] font-mono text-premium-muted truncate">{task.url}</p>
+        <div className="space-y-2">
+          <h4 className="font-display font-black text-xl text-white uppercase tracking-tight leading-none line-clamp-2 group-hover:text-premium-accent transition-colors duration-300">{task.name}</h4>
+          <p className="text-[10px] font-mono text-premium-muted tracking-tight truncate opacity-40 group-hover:opacity-100 transition-opacity">{task.url}</p>
         </div>
 
         {task.shortcut && (
-          <div className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded border border-white/5 text-premium-muted">
-            <Keyboard className="w-3 h-3 text-premium-accent" />
+          <div className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] bg-white/[0.03] px-3 py-1.5 rounded-lg border border-white/[0.05] text-premium-muted group-hover:text-white transition-colors">
+            <Keyboard className="w-3.5 h-3.5 text-premium-accent" />
             {task.shortcut}
           </div>
         )}
       </div>
 
-      <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-5">
+      <div className="mt-8 flex items-center justify-between border-t border-white/[0.05] pt-6">
         <a 
           href={task.url} 
           target="_blank" 
           rel="noopener noreferrer"
-          className="text-[10px] font-black uppercase tracking-widest text-premium-accent hover:text-blue-400 transition-colors flex items-center gap-2"
+          className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 hover:text-premium-accent transition-all flex items-center gap-2 group/link"
         >
-          Interface <ExternalLink className="w-3 h-3" />
+          Interface 
+          <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover/link:opacity-100 transition-all -translate-y-1" />
         </a>
         <button 
           onClick={toggleStatus}
           className={cn(
-            "flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all",
-            complete ? "text-emerald-400" : "text-premium-muted hover:text-white"
+            "flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.25em] transition-all",
+            complete ? "text-premium-accent" : "text-white/30 hover:text-white"
           )}
         >
-          {complete ? <CheckCircle2 className="w-4 h-4 fill-emerald-400/20" /> : <Circle className="w-4 h-4" />}
-          {complete ? "Verified" : "Pending"}
+          <div className={cn(
+            "w-5 h-5 rounded-full border flex items-center justify-center transition-all duration-300",
+            complete ? "bg-premium-accent/10 border-premium-accent shadow-[0_0_10px_rgba(59,130,246,0.3)]" : "border-white/10"
+          )}>
+            {complete && <CheckCircle2 className="w-3 h-3 text-premium-accent" />}
+          </div>
+          {complete ? "Verified" : "Standby"}
         </button>
       </div>
     </motion.div>
@@ -362,17 +374,29 @@ function NewFolderModal({ airdropId, onClose }: { airdropId: string, onClose: ()
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#050505]/95 backdrop-blur-xl">
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-premium-card border border-premium-border p-10 max-w-md w-full relative rounded-2xl shadow-2xl">
-        <button onClick={onClose} className="absolute top-6 right-6 text-2xl font-bold text-premium-muted hover:text-white transition-colors">×</button>
-        <h3 className="text-3xl font-display font-extrabold uppercase tracking-tighter mb-8 text-white">Establish Group</h3>
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="space-y-2">
-            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Group Designation</label>
-            <input required autoFocus className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent text-white" placeholder="e.g. SOCIALS, DAILY, ON-CHAIN" value={name} onChange={(e) => setName(e.target.value)} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-premium-bg/90 backdrop-blur-3xl">
+      <motion.div 
+        initial={{ y: 40, opacity: 0, scale: 0.95 }} 
+        animate={{ y: 0, opacity: 1, scale: 1 }} 
+        className="premium-glass p-12 max-w-md w-full relative rounded-[40px] shadow-2xl border border-white/[0.08]"
+      >
+        <button onClick={onClose} className="absolute top-8 right-8 w-12 h-12 flex items-center justify-center rounded-full bg-white/[0.03] text-premium-muted hover:text-white hover:bg-white/[0.1] transition-all text-2xl font-light">×</button>
+        
+        <div className="space-y-2 mb-10">
+          <div className="flex items-center gap-2 text-premium-accent text-[11px] font-black uppercase tracking-[0.3em]">
+            <div className="w-1.5 h-1.5 bg-premium-accent rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+            Core Logic
           </div>
-          <div className="space-y-4">
-            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Challenge Level</label>
+          <h3 className="text-3xl font-display font-black uppercase tracking-tight text-white leading-none">Establish Segment</h3>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-10">
+          <div className="space-y-3">
+            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Group Designation</label>
+            <input required autoFocus className="w-full bg-white/[0.03] border border-white/[0.08] p-5 rounded-2xl focus:outline-none focus:border-premium-accent/50 focus:bg-white/[0.05] transition-all text-sm text-white placeholder:text-white/10 shadow-inner" placeholder="E.G. ON-CHAIN NODES" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-5">
+            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Challenge Level</label>
             <div className="grid grid-cols-2 gap-3">
               {['easy', 'medium', 'hard', 'custom'].map((s) => (
                 <button 
@@ -380,8 +404,10 @@ function NewFolderModal({ airdropId, onClose }: { airdropId: string, onClose: ()
                   type="button" 
                   onClick={() => setDiff(s)} 
                   className={cn(
-                    "py-3 text-[10px] font-black uppercase tracking-widest border rounded-lg transition-all", 
-                    diff === s ? "bg-premium-accent text-white border-premium-accent shadow-lg shadow-premium-accent/20" : "border-premium-border text-premium-muted hover:border-premium-muted"
+                    "py-4 text-[10px] font-bold uppercase tracking-[0.15em] border rounded-2xl transition-all", 
+                    diff === s 
+                      ? "bg-premium-accent text-white border-premium-accent shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+                      : "border-white/[0.08] bg-white/[0.02] text-premium-muted hover:border-white/[0.2] hover:text-white"
                   )}
                 >
                   {s}
@@ -389,7 +415,7 @@ function NewFolderModal({ airdropId, onClose }: { airdropId: string, onClose: ()
               ))}
             </div>
           </div>
-          <button type="submit" className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] hover:bg-blue-500 shadow-xl transition-all">Establish Group</button>
+          <button type="submit" className="w-full premium-button-primary py-6 text-sm tracking-[0.3em] rounded-[24px]">ESTABLISH SEGMENT</button>
         </form>
       </motion.div>
     </div>
@@ -438,52 +464,64 @@ function NewTaskModal({ airdropId, folderId, onClose }: { airdropId: string, fol
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#050505]/95 backdrop-blur-xl overflow-y-auto">
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-premium-card border border-premium-border p-10 max-w-2xl w-full relative rounded-2xl shadow-2xl my-auto">
-        <button onClick={onClose} className="absolute top-6 right-6 text-2xl font-bold text-premium-muted hover:text-white transition-colors">×</button>
-        <h3 className="text-3xl font-display font-extrabold uppercase tracking-tighter mb-8 text-white">Log Operational Assignment</h3>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-premium-bg/90 backdrop-blur-3xl overflow-y-auto">
+      <motion.div 
+        initial={{ y: 40, opacity: 0, scale: 0.95 }} 
+        animate={{ y: 0, opacity: 1, scale: 1 }} 
+        className="premium-glass p-12 max-w-2xl w-full relative rounded-[40px] shadow-2xl border border-white/[0.08] my-auto"
+      >
+        <button onClick={onClose} className="absolute top-8 right-8 w-12 h-12 flex items-center justify-center rounded-full bg-white/[0.03] text-premium-muted hover:text-white hover:bg-white/[0.1] transition-all text-2xl font-light">×</button>
+        
+        <div className="space-y-2 mb-10">
+          <div className="flex items-center gap-2 text-premium-accent text-[11px] font-black uppercase tracking-[0.3em]">
+            <div className="w-1.5 h-1.5 bg-premium-accent rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+            Neural Command
+          </div>
+          <h3 className="text-3xl font-display font-black uppercase tracking-tight text-white leading-none">Log Assignment</h3>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <div className="space-y-2">
-                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Assignment ID</label>
-                <input required className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent text-white" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Daily Faucet" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+             <div className="space-y-3">
+                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Assignment Handle</label>
+                <input required className="w-full bg-white/[0.03] border border-white/[0.08] p-5 rounded-2xl focus:outline-none focus:border-premium-accent/50 transition-all text-sm text-white" value={name} onChange={(e) => setName(e.target.value)} placeholder="LOG DESCRIPTOR" />
              </div>
-             <div className="space-y-2">
-                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Neural Hotkey</label>
-                <input className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent text-white" placeholder="e.g. CTRL+S" value={shortcut} onChange={(e) => setShortcut(e.target.value)} />
+             <div className="space-y-3">
+                <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Neural Hotkey</label>
+                <input className="w-full bg-white/[0.03] border border-white/[0.08] p-5 rounded-2xl focus:outline-none focus:border-premium-accent/50 transition-all text-sm text-white" placeholder="CTRL+K" value={shortcut} onChange={(e) => setShortcut(e.target.value)} />
              </div>
           </div>
           
-          <div className="space-y-2">
-            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic">Target Uplink (URL)</label>
-            <input required className="w-full bg-white/[0.03] border border-premium-border p-4 rounded-xl focus:outline-none focus:border-premium-accent text-white font-mono text-xs" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." />
+          <div className="space-y-3">
+            <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60">Neural Uplink (URL)</label>
+            <input required className="w-full bg-white/[0.03] border border-white/[0.08] p-5 rounded-2xl focus:outline-none focus:border-premium-accent/50 transition-all text-sm text-white font-mono" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="HTTPS://TARGET-LAYER.XYZ" />
           </div>
 
           <div className="space-y-4">
-             <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted italic block">Thread Execution Steps</label>
-             <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 scrollbar-none">
+             <label className="text-[10px] uppercase font-bold tracking-[0.2em] text-premium-muted opacity-60 block">Thread Architecture</label>
+             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-3 scrollbar-none">
                 {steps.map((step, idx) => (
-                  <div key={idx} className="flex gap-4">
-                    <span className="bg-white/5 border border-white/5 text-premium-accent w-10 h-12 flex items-center justify-center font-bold flex-shrink-0 rounded-lg">{idx + 1}</span>
+                  <div key={idx} className="flex gap-4 items-center group/step">
+                    <div className="w-10 h-10 bg-white/[0.03] border border-white/[0.1] text-premium-accent flex items-center justify-center font-black text-xs flex-shrink-0 rounded-xl group-hover/step:border-premium-accent/50 transition-colors">{idx + 1}</div>
                     <input 
                       required 
-                      className="flex-1 bg-transparent border-b border-premium-border focus:border-premium-accent py-2 focus:outline-none text-sm text-white" 
-                      placeholder="Connect Bridge, Swap Assets..."
+                      className="flex-1 bg-transparent border-b border-white/[0.1] focus:border-premium-accent/50 py-3 focus:outline-none text-sm text-white transition-all" 
+                      placeholder="Transmission Step Descriptor..."
                       value={step.description}
                       onChange={(e) => updateStep(idx, e.target.value)}
                     />
-                    <button type="button" onClick={() => removeStep(idx)} className="text-premium-muted hover:text-red-400 p-2 transition-colors">
+                    <button type="button" onClick={() => removeStep(idx)} className="text-premium-muted hover:text-red-400 p-2 transition-all opacity-0 group-hover/step:opacity-100">
                        <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
              </div>
-             <button type="button" onClick={addStep} className="w-full py-4 border border-dashed border-premium-border text-premium-muted font-bold uppercase text-[10px] tracking-widest hover:border-premium-accent hover:text-white transition-all rounded-xl">
-                + Append Thread Step
+             <button type="button" onClick={addStep} className="w-full py-5 border border-dashed border-white/[0.1] text-premium-muted font-bold uppercase text-[10px] tracking-[0.25em] hover:border-premium-accent/40 hover:text-white hover:bg-premium-accent/[0.02] transition-all rounded-[20px]">
+                + Append Architectural Node
              </button>
           </div>
 
-          <button type="submit" className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] hover:bg-blue-500 shadow-xl transition-all">Authorize Assignment</button>
+          <button type="submit" className="w-full premium-button-primary py-6 text-sm tracking-[0.3em] rounded-[24px]">AUTHORIZE ASSIGNMENT</button>
         </form>
       </motion.div>
     </div>

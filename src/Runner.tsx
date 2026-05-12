@@ -150,14 +150,24 @@ export function Runner() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentTask, currentIndex, tasks.length, handleTaskComplete]);
 
-  if (loading) return <div className="text-center py-20 font-mono">Calibrating Speed Sensors...</div>;
+  if (loading) return <div className="text-center py-40 font-black uppercase tracking-[0.4em] text-premium-accent animate-pulse italic">Calibrating Speed Sensors...</div>;
   if (tasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-6 text-center">
-        <CheckCircle2 className="w-20 h-20 text-green-600 mb-4" />
-        <h2 className="text-4xl font-black uppercase tracking-tighter italic">Sector Secured</h2>
-        <p className="text-gray-500 font-serif italic">All tasks in this coordinate are finalized. Returning to command center.</p>
-        <button onClick={() => navigate(`/airdrop/${id}`)} className="bg-[#141414] text-white px-8 py-4 font-bold uppercase tracking-widest hover:bg-black transition-all">Back to Details</button>
+      <div className="flex flex-col items-center justify-center min-h-[80vh] space-y-10 text-center">
+        <div className="relative">
+          <div className="absolute inset-0 bg-premium-accent opacity-20 blur-[60px] animate-pulse rounded-full" />
+          <CheckCircle2 className="w-24 h-24 text-premium-accent relative z-10" />
+        </div>
+        <div className="space-y-4">
+          <h2 className="text-5xl font-display font-black uppercase tracking-tighter text-white">Sector Secured</h2>
+          <p className="text-premium-muted font-display font-bold uppercase tracking-[0.2em] opacity-40">All tasks in this coordinate are finalized.</p>
+        </div>
+        <button 
+          onClick={() => navigate(`/airdrop/${id}`)} 
+          className="premium-button-primary px-12 py-6 rounded-[24px]"
+        >
+          Return to Command
+        </button>
       </div>
     );
   }
@@ -165,36 +175,36 @@ export function Runner() {
   return (
     <div className="h-[calc(100vh-2rem)] flex flex-col space-y-4 font-sans antialiased text-premium-text">
       {/* HUD Header */}
-      <div className="bg-premium-card border-b border-premium-border p-3 flex items-center justify-between flex-shrink-0 shadow-lg relative z-20">
-        <div className="flex items-center gap-4">
-          <div className="bg-premium-accent/10 p-1.5 rounded">
-            <Zap className="w-4 h-4 text-premium-accent fill-current" />
+      <div className="bg-premium-bg/50 backdrop-blur-2xl border-b border-white/[0.05] p-5 px-8 flex items-center justify-between flex-shrink-0 relative z-20">
+        <div className="flex items-center gap-6">
+          <div className="w-10 h-10 bg-premium-accent/10 border border-premium-accent/20 rounded-xl flex items-center justify-center">
+            <Zap className="w-5 h-5 text-premium-accent fill-current" />
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-premium-accent italic leading-none">Turbo-Drive Active</span>
-            <span className="text-[9px] font-mono font-bold text-premium-muted mt-1">SESSION_STX_{id?.slice(0,8)}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.3em] text-premium-accent italic leading-tight">Turbo-Drive Protocol</span>
+            <span className="text-[9px] font-mono font-bold text-premium-muted mt-1 opacity-40">CLUSTER_HASH_{id?.slice(0,12)}</span>
           </div>
         </div>
-        <div className="flex items-center gap-8">
-           <div className="hidden md:flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
-              <span className="text-premium-muted">Auto-Engagement:</span>
+        <div className="flex items-center gap-10">
+           <div className="hidden lg:flex items-center gap-6 text-[10px] font-black uppercase tracking-[0.2em]">
+              <span className="text-premium-muted opacity-40 italic">Chain-Engagement:</span>
               <button 
                 onClick={() => setAutoNext(!autoNext)}
                 className={cn(
-                  "px-3 py-1 border transition-all rounded-md text-[9px]", 
+                  "px-4 py-1.5 border transition-all rounded-full text-[9px] font-black tracking-[0.1em]", 
                   autoNext 
-                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]" 
-                    : "bg-red-500/10 border-red-500/50 text-red-400"
+                    ? "bg-premium-accent/10 border-premium-accent/40 text-premium-accent shadow-[0_0_15px_rgba(59,130,246,0.2)]" 
+                    : "bg-white/[0.03] border-white/[0.1] text-premium-muted opacity-50"
                 )}
               >
-                {autoNext ? "ENABLED" : "DISABLED"}
+                {autoNext ? "AUTHORIZED" : "HALTED"}
               </button>
            </div>
            <button 
              onClick={() => navigate(`/airdrop/${id}`)} 
-             className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-premium-muted hover:text-white transition-colors"
+             className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-premium-muted hover:text-white transition-all group"
            >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-700" />
               <span className="hidden sm:inline">Abort Protocol</span>
            </button>
         </div>
@@ -267,61 +277,61 @@ export function Runner() {
         </div>
 
         {/* Right: Execution Steps Sidebar */}
-        <div className="w-72 md:w-96 premium-glass border border-premium-border flex flex-col overflow-hidden rounded-2xl">
-           <div className="p-6 bg-premium-accent/5 border-b border-white/5">
-              <div className="flex items-center justify-between mb-2">
-                 <h4 className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2 text-white">
-                    Execution Cluster
+        <div className="w-72 md:w-96 premium-glass border border-white/[0.05] flex flex-col overflow-hidden rounded-[32px] shadow-2xl">
+           <div className="p-8 bg-white/[0.02] border-b border-white/[0.05]">
+              <div className="flex items-center justify-between mb-3">
+                 <h4 className="text-xs font-black uppercase tracking-[0.3em] flex items-center gap-3 text-white">
+                    <Terminal className="w-4 h-4 text-premium-accent" />
+                    Neural Hub
                  </h4>
-                 <Terminal className="w-4 h-4 text-premium-accent" />
               </div>
-              <p className="text-[10px] font-mono text-premium-muted uppercase tracking-tighter">Current Op: {currentTask.name}</p>
+              <p className="text-[10px] font-mono text-premium-muted uppercase tracking-tighter opacity-40">Segment: {currentTask.name}</p>
            </div>
            
-           <div className="flex-1 p-6 overflow-y-auto space-y-4 scrollbar-none">
+           <div className="flex-1 p-8 overflow-y-auto space-y-5 scrollbar-none">
               {currentTask.steps?.map((step: any, sIdx: number) => (
                 <button 
                   key={sIdx}
                   onClick={() => toggleStep(sIdx)}
                   className={cn(
-                   "w-full flex items-center gap-4 p-4 border transition-all relative group text-left rounded-xl",
+                   "w-full flex items-center gap-5 p-5 border transition-all relative group text-left rounded-[20px]",
                    step.isCompleted 
-                     ? "border-emerald-500/20 bg-emerald-500/5" 
-                     : "border-white/5 bg-white/[0.02] hover:border-premium-accent hover:bg-premium-accent/5"
+                     ? "border-premium-accent/20 bg-premium-accent/[0.03]" 
+                     : "border-white/[0.05] bg-white/[0.01] hover:border-premium-accent/40 hover:bg-premium-accent/[0.02]"
                   )}
                 >
                    <div className={cn(
-                     "w-7 h-7 rounded-lg flex items-center justify-center font-black text-[11px] flex-shrink-0 transition-all",
+                     "w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs flex-shrink-0 transition-all",
                      step.isCompleted 
-                       ? "bg-emerald-500 text-white" 
-                       : "bg-white/5 text-premium-muted group-hover:bg-premium-accent group-hover:text-white"
+                       ? "bg-premium-accent text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+                       : "bg-white/[0.03] text-premium-muted group-hover:bg-premium-accent/20 group-hover:text-white"
                    )}>
                      {sIdx + 1}
                    </div>
-                   <span className={cn("text-[11px] font-bold uppercase tracking-tight flex-1", step.isCompleted ? "line-through text-emerald-400 opacity-60" : "text-white")}>
+                   <span className={cn("text-[11px] font-black uppercase tracking-tight flex-1", step.isCompleted ? "line-through text-premium-accent/50" : "text-white")}>
                      {step.description}
                    </span>
-                   {step.isCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                   {step.isCompleted && <CheckCircle2 className="w-4 h-4 text-premium-accent" />}
                    {!step.isCompleted && (
-                     <div className="text-[9px] font-mono border border-white/20 px-1.5 py-0.5 opacity-0 group-hover:opacity-100 bg-white/5 text-premium-muted rounded">
-                        [{sIdx+1}]
+                     <div className="text-[10px] font-mono text-premium-accent font-black opacity-0 group-hover:opacity-100 transition-opacity">
+                        NODE_{sIdx+1}
                      </div>
                    )}
                 </button>
               ))}
            </div>
 
-           <div className="p-6 border-t border-white/5 bg-white/5 space-y-4">
+           <div className="p-8 border-t border-white/[0.05] bg-white/[0.01] space-y-6">
               <button 
                  onClick={() => handleTaskComplete(currentTask.id)}
-                 className="w-full bg-premium-accent text-white py-5 rounded-xl font-black uppercase tracking-[0.3em] text-[10px] hover:bg-blue-500 shadow-2xl shadow-premium-accent/20 active:scale-[0.98] transition-all"
+                 className="premium-button-primary w-full py-6 rounded-[20px] text-xs"
               >
-                Confirm Completion [SPC]
+                AUTHORIZE MISSION [SPC]
               </button>
               
-              <div className="grid grid-cols-2 gap-4 text-[9px] font-black uppercase tracking-[0.2em] text-premium-muted">
-                 <div className="flex items-center gap-2 hover:text-white transition-colors cursor-help"><kbd className="px-2 py-0.5 rounded border border-white/10 bg-white/5">←</kbd> PREV</div>
-                 <div className="flex items-center gap-2 justify-end hover:text-white transition-colors cursor-help">NEXT <kbd className="px-2 py-0.5 rounded border border-white/10 bg-white/5">→</kbd></div>
+              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-premium-muted">
+                 <button onClick={() => currentIndex > 0 && setCurrentIndex(v => v - 1)} className="flex items-center gap-3 hover:text-white transition-colors"><kbd className="px-2 py-1 rounded bg-white/[0.03] border border-white/[0.1]">←</kbd> PREV</button>
+                 <button onClick={() => currentIndex < tasks.length - 1 && setCurrentIndex(v => v + 1)} className="flex items-center gap-3 hover:text-white transition-colors">NEXT <kbd className="px-2 py-1 rounded bg-white/[0.03] border border-white/[0.1]">→</kbd></button>
               </div>
            </div>
         </div>
